@@ -12,10 +12,40 @@ import { maskValue } from './maskValue.js';
 import { tracedFetch } from './tracingHelpers.js';
 
 /** Agent Builder agents served from gawdzilla (OK_KIBANA_URL / OK_KIBANA_API_KEY), not ELASTIC_KB_URL. */
-const GAWDZILLA_AGENT_BUILDER_IDS = new Set(['ok-fraud', 'ok-grants-data']);
+const GAWDZILLA_AGENT_BUILDER_IDS = new Set(['ok-fraud', 'ok-grants-data', 'booster-donor-data', 'ok-oja-data', 'gameday-revenue-data', 'ou-met-catalog-agent', 'ou-met-provisioning-agent', 'snap-fraud-investigator', 'okstate-donor-assistant', 'okstate-gameday-revenue-assistant', 'wyo-classify']);
+
+/** ESQL / _search on gawdzilla Elasticsearch (OK_ELASTIC_ES_URL proxy path). */
+const GAWDZILLA_ES_AGENT_IDS = new Set(['ok-fraud', 'booster-donor-data', 'ok-oja-data', 'gameday-revenue-data', 'snap-fraud-investigator', 'okstate-donor-assistant', 'okstate-gameday-revenue-assistant', 'wyo-classify']);
 
 function usesGawdzillaAgentBuilder(agentId) {
     return Boolean(agentId && GAWDZILLA_AGENT_BUILDER_IDS.has(String(agentId)));
+}
+
+function usesGawdzillaEs(agentId) {
+    return Boolean(agentId && GAWDZILLA_ES_AGENT_IDS.has(String(agentId)));
+}
+
+export { getApiKeyForAgent, usesGawdzillaAgentBuilder, usesGawdzillaEs };
+
+/**
+ * Proxy path for Agent Builder tool execute on gawdzilla.
+ * @param {string} agentId
+ * @returns {string}
+ */
+function getAgentBuilderToolExecutePath(agentId) {
+    const paths = {
+        'ok-oja-data': '/api/elastic/ok-oja-data/tools/_execute',
+        'booster-donor-data': '/api/elastic/booster-donor-data/tools/_execute',
+        'ok-grants-data': '/api/elastic/ok-grants-data/tools/_execute',
+        'gameday-revenue-data': '/api/elastic/gameday-revenue-data/tools/_execute',
+        'okstate-donor-assistant': '/api/elastic/booster-donor-data/tools/_execute',
+        'okstate-gameday-revenue-assistant': '/api/elastic/gameday-revenue-data/tools/_execute',
+    };
+    if (paths[agentId]) return paths[agentId];
+    if (usesGawdzillaAgentBuilder(agentId)) {
+        return '/api/elastic/ok-fraud/tools/_execute';
+    }
+    return '/api/agent_builder/tools/_execute';
 }
 
 /** Best-effort summary from Kibana / Agent Builder error JSON or raw text (for UI and logs). */
@@ -38,17 +68,26 @@ function summarizeAgentBuilderErrorBody(errorText) {
     return raw.length > 600 ? `${raw.slice(0, 600)}…` : raw;
 }
 
+function isGawdzillaCluster() {
+    const urls = [
+        getEnvVar('ELASTIC_ES_URL', ''),
+        getEnvVar('OK_ELASTIC_ES_URL', ''),
+        getEnvVar('ELASTIC_KB_URL', ''),
+        getEnvVar('OK_KIBANA_URL', ''),
+    ].join(' ').toLowerCase();
+    return urls.includes('gawdzilla');
+}
+
 /**
  * Gets the Elastic API key from environment
  * @returns {string} API key or empty string
  */
 function getApiKey() {
-    const apiKey = getEnvVar('ELASTIC_API_KEY', '');
-    // Debug: Log if API key is missing (but don't log the actual key)
-    if (!apiKey && typeof window !== 'undefined') {
-        console.warn('ELASTIC_API_KEY not found. window.env:', window.env ? Object.keys(window.env) : 'not defined');
-    }
-    return apiKey;
+    const okKey = getEnvVar('OK_KIBANA_API_KEY', '');
+    const elasticKey = getEnvVar('ELASTIC_API_KEY', '');
+    // Gawdzilla: prefer OK_KIBANA_API_KEY so a stale Apex ELASTIC_API_KEY does not break ES queries
+    if (isGawdzillaCluster() && okKey) return okKey;
+    return elasticKey || okKey;
 }
 
 /**
@@ -57,7 +96,7 @@ function getApiKey() {
  * @returns {string} API key or empty string
  */
 function getApiKeyForAgent(agentId) {
-    if (usesGawdzillaAgentBuilder(agentId)) {
+    if (usesGawdzillaAgentBuilder(agentId) || usesGawdzillaEs(agentId)) {
         const fraudKey = getEnvVar('OK_KIBANA_API_KEY', '');
         if (fraudKey) return fraudKey;
     }
@@ -72,19 +111,15 @@ function getApiKeyForAgent(agentId) {
  */
 function createAuthHeaders(includeKbnXsrf = false, agentId = '') {
     const apiKey = getApiKeyForAgent(agentId);
-    if (!apiKey) {
-        console.warn(
-            usesGawdzillaAgentBuilder(agentId)
-                ? 'OK_KIBANA_API_KEY (or ELASTIC_API_KEY) not found for gawdzilla Agent Builder'
-                : 'ELASTIC_API_KEY not found in environment'
-        );
-        return {};
-    }
-
+    // On Vercel, the /api/elastic BFF attaches ApiKey from server env when the
+    // browser has no window.env keys. Still send Authorization when present (Docker/Vite).
     const headers = {
-        'Authorization': `ApiKey ${apiKey}`,
         'Content-Type': 'application/json',
     };
+
+    if (apiKey) {
+        headers.Authorization = `ApiKey ${apiKey}`;
+    }
 
     if (includeKbnXsrf) {
         headers['kbn-xsrf'] = 'true';
@@ -103,17 +138,11 @@ function createAuthHeaders(includeKbnXsrf = false, agentId = '') {
  */
 export async function fetchESQLQuery(query, params = {}, agentId = '') {
     const apiKey = agentId ? getApiKeyForAgent(agentId) : getApiKey();
-    if (!apiKey) {
-        throw new Error(agentId === 'ok-fraud'
-            ? 'OK_KIBANA_API_KEY (or ELASTIC_API_KEY) is required for ESQL queries to gawdzilla'
-            : 'ELASTIC_API_KEY is required for ESQL queries');
-    }
-
-    const maskedKey = maskValue(apiKey);
+    const maskedKey = apiKey ? maskValue(apiKey) : '(proxy)';
     console.log('Executing ESQL query:', { query: query.substring(0, 100) + '...', apiKey: maskedKey });
 
     try {
-        const esPath = agentId === 'ok-fraud' ? '/api/elastic/ok-fraud/es/_query' : '/api/elastic/es/_query';
+        const esPath = usesGawdzillaEs(agentId) ? '/api/elastic/ok-fraud/es/_query' : '/api/elastic/es/_query';
         const response = await tracedFetch(esPath, {
             method: 'POST',
             headers: createAuthHeaders(false, agentId),
@@ -179,15 +208,11 @@ export async function fetchESQLQuery(query, params = {}, agentId = '') {
  * @returns {Promise<Object>} Parsed JSON response
  */
 export async function fetchElasticsearchSearchWithAgent(index, queryBody, agentId = 'ok-fraud') {
-    if (agentId !== 'ok-fraud') {
-        throw new Error('fetchElasticsearchSearchWithAgent currently supports agentId ok-fraud only');
+    if (!usesGawdzillaEs(agentId)) {
+        throw new Error('fetchElasticsearchSearchWithAgent supports gawdzilla agent IDs only (ok-fraud, booster-donor-data)');
     }
     const apiKey = getApiKeyForAgent(agentId);
-    if (!apiKey) {
-        throw new Error('OK_KIBANA_API_KEY (or ELASTIC_API_KEY) is required for ok-grant-data search');
-    }
-
-    const maskedKey = maskValue(apiKey);
+    const maskedKey = apiKey ? maskValue(apiKey) : '(proxy)';
     console.log('Elasticsearch search (ok cluster):', {
         index,
         apiKey: maskedKey,
@@ -243,19 +268,12 @@ export async function fetchElasticsearchSearchWithAgent(index, queryBody, agentI
  */
 export async function fetchAgentChat(agentId, message, conversationId = null) {
     const apiKey = getApiKeyForAgent(agentId);
-    if (!apiKey) {
-        throw new Error(
-            usesGawdzillaAgentBuilder(agentId)
-                ? 'OK_KIBANA_API_KEY is required for this agent (gawdzilla Agent Builder; add it to .env)'
-                : 'ELASTIC_API_KEY is required for Agent Builder'
-        );
-    }
 
     if (!agentId) {
         throw new Error('Agent ID is required for chat');
     }
 
-    const maskedKey = maskValue(apiKey);
+    const maskedKey = apiKey ? maskValue(apiKey) : '(proxy)';
     console.log('Sending Agent Builder chat:', {
         agentId: maskValue(agentId, 8),
         messageLength: message.length,
@@ -336,11 +354,7 @@ export async function fetchAgentSearch(agentId, query) {
  */
 export async function fetchElasticsearchSearch(index, queryBody) {
     const apiKey = getApiKey();
-    if (!apiKey) {
-        throw new Error('ELASTIC_API_KEY is required for Elasticsearch searches');
-    }
-
-    const maskedKey = maskValue(apiKey);
+    const maskedKey = apiKey ? maskValue(apiKey) : '(proxy)';
     console.log('Executing Elasticsearch search:', {
         index,
         queryType: queryBody.retriever ? 'RRF' : 'standard',
@@ -408,11 +422,7 @@ export async function fetchElasticsearchSearch(index, queryBody) {
  */
 export async function fetchElasticsearchUpdate(index, documentId, updateData) {
     const apiKey = getApiKey();
-    if (!apiKey) {
-        throw new Error('ELASTIC_API_KEY is required for Elasticsearch updates');
-    }
-
-    const maskedKey = maskValue(apiKey);
+    const maskedKey = apiKey ? maskValue(apiKey) : '(proxy)';
     console.log('Executing Elasticsearch update:', {
         index,
         documentId: maskValue(documentId, 8),
@@ -447,4 +457,37 @@ export async function fetchElasticsearchUpdate(index, documentId, updateData) {
         console.error('Elasticsearch update error:', error.message);
         throw error;
     }
+}
+
+/**
+ * Execute an Agent Builder tool directly (e.g. workflow tool for email draft).
+ * Gawdzilla agents use /api/elastic/ok-oja-data/tools/_execute proxy path.
+ *
+ * @param {string} agentId - Agent ID for API key / proxy routing (e.g. ok-oja-data)
+ * @param {string} toolId - Tool ID registered in Agent Builder
+ * @param {Object} toolParams - Parameters for the tool
+ * @returns {Promise<Object>} Parsed tool execute response
+ */
+export async function executeAgentBuilderTool(agentId, toolId, toolParams = {}) {
+    const path = getAgentBuilderToolExecutePath(agentId);
+
+    const response = await tracedFetch(path, {
+        method: 'POST',
+        headers: createAuthHeaders(true, agentId),
+        body: JSON.stringify({
+            tool_id: toolId,
+            tool_params: toolParams,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        const summary = summarizeAgentBuilderErrorBody(errorText);
+        const err = new Error(summary || `Tool execute failed: ${response.status}`);
+        err.status = response.status;
+        err.details = errorText;
+        throw err;
+    }
+
+    return response.json();
 }

@@ -195,6 +195,25 @@ export async function getStudentData(studentId, preferredIndex = 'students') {
             console.log(`Student found in index '${preferredIndex}'`);
             return mapped;
         }
+
+        // Fallback: numeric login / student_id
+        if (/^\d+$/.test(String(studentId).trim())) {
+            const idQuery = `FROM ${preferredIndex} | WHERE student_id == ${String(studentId).trim()} | LIMIT 1`;
+            const idResult = await fetchESQLQuery(idQuery);
+            const idMapped = mapESQLResponse(idResult, preferredIndex);
+            if (idMapped) return idMapped;
+        }
+
+        // Fallback: case-insensitive partial name
+        const likeQuery = `FROM ${preferredIndex} | WHERE full_name LIKE "*${escapedStudentId}*" | LIMIT 1`;
+        try {
+            const likeResult = await fetchESQLQuery(likeQuery);
+            const likeMapped = mapESQLResponse(likeResult, preferredIndex);
+            if (likeMapped) return likeMapped;
+        } catch {
+            /* LIKE may not match all field types — ignore */
+        }
+
         // No results found
         console.log(`No student found in index '${preferredIndex}'`);
         return {
@@ -585,7 +604,7 @@ function grantField(obj, ...keys) {
 }
 
 /** Normalize _source hit into StateAgencyGrantsSearch row shape (flexible field names). */
-function mapElasticsearchGrantHitToRow(hit) {
+export function mapElasticsearchGrantHitToRow(hit) {
     const s = hit._source || {};
     const id = hit._id || grantField(s, 'Portal_ID', 'portal_id', 'Grant_Program_ID', 'grant_program_id', 'id', 'grant_id');
     const title =
@@ -950,4 +969,783 @@ export async function updateStudentData(studentId, updateData, index = 'students
         console.error('Student data update error:', error);
         throw error;
     }
+}
+
+/**
+ * Run ESQL against students index and return row objects.
+ * @param {string} query
+ * @returns {Promise<Array<Object>>}
+ */
+async function runStudentsEsql(query) {
+    try {
+        const result = await fetchESQLQuery(query);
+        if (!result?.columns || !result?.values) return [];
+        const columns = result.columns.map((c) => c.name);
+        return result.values.map((row) => {
+            const obj = {};
+            columns.forEach((col, idx) => {
+                obj[col] = row[idx];
+            });
+            return obj;
+        });
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/** @returns {Promise<Array<Object>>} */
+export async function searchHighPriorityStudents() {
+    const query = `FROM students
+| WHERE full_name IS NOT NULL AND (risk_label == "Critical" OR risk_label == "At-Risk")
+| SORT risk_score_normalized DESC
+| LIMIT 20`;
+    const rows = await runStudentsEsql(query);
+    return rows.filter((s) => s.full_name?.trim());
+}
+
+/** @returns {Promise<Array<Object>>} */
+export async function searchPrimeScholarshipCandidates() {
+    const query = `FROM students
+| WHERE full_name IS NOT NULL AND sai_value < 10000 AND lms_activity_score > 60 AND cumulative_gpa > 2.5
+| KEEP full_name, sai_value, lms_activity_score, cumulative_gpa
+| LIMIT 8`;
+    return runStudentsEsql(query);
+}
+
+/** @returns {Promise<Array<Object>>} */
+export async function searchCriticalRiskStudents() {
+    const query = `FROM students
+| WHERE full_name IS NOT NULL AND risk_label == "Critical"
+| SORT risk_score_normalized DESC
+| KEEP full_name, risk_score_normalized
+| LIMIT 10`;
+    return runStudentsEsql(query);
+}
+
+/** @param {number} [limit] @returns {Promise<Array<Object>>} */
+export async function getRandomStudents(limit = 3) {
+    const query = `FROM students | WHERE full_name IS NOT NULL | KEEP full_name | LIMIT ${Math.min(limit, 10)}`;
+    return runStudentsEsql(query);
+}
+
+/** @returns {Promise<Array<Object>>} */
+export async function getAllStudentsForNavigation() {
+    const query = `FROM students | WHERE full_name IS NOT NULL | KEEP full_name | SORT full_name ASC | LIMIT 500`;
+    return runStudentsEsql(query);
+}
+
+/**
+ * Load a random student profile from Gawdzilla for demo / quick login.
+ * @returns {Promise<Object>} Same shape as getStudentData()
+ */
+export async function getRandomStudentProfile() {
+    const pool = await runStudentsEsql(
+        `FROM students | WHERE full_name IS NOT NULL | KEEP full_name | LIMIT 50`
+    );
+    if (!pool.length) {
+        return { student: null, found: false, index: null, documentId: null };
+    }
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    return getStudentData(pick.full_name);
+}
+
+/**
+ * Resolve login campus ID to a student document (Gawdzilla students index).
+ * Quick-login ids like "student" load a random profile from the cluster.
+ * @param {string} loginId
+ * @returns {Promise<Object>}
+ */
+export async function resolveStudentForLogin(loginId) {
+    const trimmed = String(loginId || '').trim();
+    if (!trimmed) {
+        return getRandomStudentProfile();
+    }
+
+    const direct = await getStudentData(trimmed);
+    if (direct.found && direct.student) {
+        return direct;
+    }
+
+    const genericLogin = /^(student|demo|test|guest)$/i.test(trimmed);
+    if (genericLogin || trimmed.length < 3) {
+        return getRandomStudentProfile();
+    }
+
+    return getRandomStudentProfile();
+}
+
+const BOOSTER_GAWDZILLA_AGENT = 'booster-donor-data';
+
+/**
+ * Maps ESQL result columns/values to row objects.
+ * @param {Object} result - ESQL API response
+ * @returns {Array<Object>}
+ */
+function mapEsqlRows(result) {
+    if (!result?.columns || !result?.values) return [];
+    const columns = result.columns.map((c) => c.name);
+    return result.values.map((row) => {
+        const obj = {};
+        columns.forEach((col, idx) => {
+            obj[col] = row[idx];
+        });
+        return obj;
+    });
+}
+
+/**
+ * Aggregate booster donor portfolio stats from athletic-boosters (gawdzilla).
+ * @param {string} [agentId] - Use 'booster-donor-data' for gawdzilla
+ * @returns {Promise<{donorCount: number|null, avgAffinity: number|null, totalLifetimeGiving: number|null}>}
+ */
+export async function getBoosterDonorStats(agentId = BOOSTER_GAWDZILLA_AGENT) {
+    const query = 'FROM athletic-boosters | STATS avg_affinity = AVG(affinity_score), total_lifetime = SUM(giving_history.lifetime_total), donor_count = COUNT(*) | LIMIT 1';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        if (!result.columns || !result.values?.length) {
+            return { donorCount: null, avgAffinity: null, totalLifetimeGiving: null };
+        }
+        const row = result.values[0];
+        const idx = (name) => result.columns.findIndex((c) => c.name === name);
+        return {
+            avgAffinity: idx('avg_affinity') >= 0 ? Number(row[idx('avg_affinity')]) : null,
+            totalLifetimeGiving: idx('total_lifetime') >= 0 ? Number(row[idx('total_lifetime')]) : null,
+            donorCount: idx('donor_count') >= 0 ? Number(row[idx('donor_count')]) : null,
+        };
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) {
+            console.warn('athletic-boosters index not found (404).');
+            return { donorCount: null, avgAffinity: null, totalLifetimeGiving: null };
+        }
+        throw error;
+    }
+}
+
+/**
+ * At-risk donors (low affinity or low email engagement) from athletic-boosters.
+ * @param {string} [agentId]
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getBoosterAtRiskDonors(agentId = BOOSTER_GAWDZILLA_AGENT) {
+    const query = `FROM athletic-boosters
+| WHERE affinity_score < 40 OR engagement.email_open_rate_90d < 0.2
+| SORT affinity_score ASC
+| KEEP donor_id, first_name, last_name, affinity_score, giving_history.lifetime_total, engagement.email_open_rate_90d, giving_history.last_gift_date
+| LIMIT 25`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/**
+ * At-risk major gift donors (lifetime >= $50k with declining engagement).
+ * @param {string} [agentId]
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getBoosterAtRiskMajorGifts(agentId = BOOSTER_GAWDZILLA_AGENT) {
+    const query = `FROM athletic-boosters
+| WHERE giving_history.lifetime_total >= 50000 AND (affinity_score < 45 OR engagement.email_open_rate_90d < 0.15)
+| SORT giving_history.lifetime_total DESC
+| KEEP donor_id, first_name, last_name, affinity_score, giving_history.lifetime_total, giving_history.last_gift_date, engagement.email_open_rate_90d
+| LIMIT 15`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/**
+ * Top affinity donors for athletic advancement intelligence.
+ * @param {string} [agentId]
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getBoosterTopAffinityDonors(agentId = BOOSTER_GAWDZILLA_AGENT) {
+    const query = `FROM athletic-boosters
+| SORT affinity_score DESC
+| KEEP donor_id, first_name, last_name, affinity_score, giving_history.lifetime_total, degree, graduation_year, wealth_signals.estimated_capacity
+| LIMIT 10`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/**
+ * Engagement event breakdown from booster-engagement-events.
+ * @param {string} [agentId]
+ * @returns {Promise<Array<{event_type: string, events: number}>>}
+ */
+export async function getBoosterEngagementEventSummary(agentId = BOOSTER_GAWDZILLA_AGENT) {
+    const query = 'FROM booster-engagement-events | STATS events = COUNT(*) BY event_type | SORT events DESC | LIMIT 8';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/**
+ * At-risk case metrics from booster-case-metrics.
+ * @param {string} [agentId]
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getBoosterCaseMetrics(agentId = BOOSTER_GAWDZILLA_AGENT) {
+    const query = 'FROM booster-case-metrics | KEEP metric_type, count, severity, tags, @timestamp | LIMIT 20';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/**
+ * Lookup a single donor by donor_id from athletic-boosters.
+ * @param {string} donorId
+ * @param {string} [agentId]
+ * @returns {Promise<Object|null>}
+ */
+export async function getBoosterDonorById(donorId, agentId = BOOSTER_GAWDZILLA_AGENT) {
+    if (!donorId || String(donorId).trim() === '') return null;
+    const escaped = String(donorId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const query = `FROM athletic-boosters | WHERE donor_id == "${escaped}" | KEEP donor_id, first_name, last_name, email, graduation_year, degree, location.city, location.state, giving_history.lifetime_total, giving_history.last_gift_date, engagement.email_open_rate_90d, engagement.game_attendance_count, engagement.events_attended_ytd, wealth_signals.iwave_score, wealth_signals.estimated_capacity, portfolio_status, affinity_score, bio_text | LIMIT 1`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        const rows = mapEsqlRows(result);
+        return rows[0] ?? null;
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return null;
+        throw error;
+    }
+}
+
+/**
+ * Recent engagement events for a donor from booster-engagement-events.
+ * @param {string} donorId
+ * @param {string} [agentId]
+ * @param {number} [limit]
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getBoosterDonorEngagementEvents(donorId, agentId = BOOSTER_GAWDZILLA_AGENT, limit = 8) {
+    if (!donorId || String(donorId).trim() === '') return [];
+    const escaped = String(donorId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const query = `FROM booster-engagement-events | WHERE donor_id == "${escaped}" | SORT event_date DESC | KEEP event_type, event_date, event_category, event_label, campaign, signal_value, baseline_value, delta_from_baseline, fiscal_year | LIMIT ${Math.min(limit, 25)}`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/**
+ * Daily engagement timeline for a donor (email, attendance, login signals).
+ * @param {string} donorId
+ * @param {string} [agentId]
+ * @param {string} [startDate] - ISO date lower bound
+ * @param {number} [limit]
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getBoosterDonorEngagementTimeline(donorId, agentId = BOOSTER_GAWDZILLA_AGENT, startDate = '2024-03-01', limit = 10000) {
+    if (!donorId || String(donorId).trim() === '') return [];
+    const escaped = String(donorId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const query = `FROM booster-engagement-events | WHERE donor_id == "${escaped}" AND event_date >= "${startDate}" | KEEP event_date, event_type, event_category, event_label, signal_value, baseline_value, delta_from_baseline, campaign | SORT event_date ASC | LIMIT ${Math.min(limit, 10000)}`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+const GAMEDAY_AGENT = 'gameday-revenue-data';
+
+/**
+ * Combined game-day revenue summary from Paciolan tickets + Square POS.
+ * @param {string} [agentId]
+ * @returns {Promise<{ticketScans: number|null, ticketRevenue: number|null, avgTicketPrice: number|null, posTransactions: number|null, posRevenue: number|null, avgPosTicket: number|null, combinedRevenue: number|null, resaleScans: number|null}>}
+ */
+export async function getGamedayRevenueSummary(agentId = GAMEDAY_AGENT) {
+    const ticketQuery = 'FROM paciolan-ticket-events | STATS scans = COUNT(*), ticket_revenue = SUM(ticket_price), avg_price = AVG(ticket_price) | LIMIT 1';
+    const retailQuery = 'FROM stadium-retail-sales | STATS txns = COUNT(*), retail_revenue = SUM(total_amount), units_sold = SUM(quantity), avg_txn = AVG(total_amount) | LIMIT 1';
+    const resaleQuery = 'FROM paciolan-ticket-events | STATS resale = COUNT(*) WHERE is_resale == true | LIMIT 1';
+
+    try {
+        const [ticketResult, retailResult, resaleResult] = await Promise.all([
+            fetchESQLQuery(ticketQuery, {}, agentId),
+            fetchESQLQuery(retailQuery, {}, agentId),
+            fetchESQLQuery(resaleQuery, {}, agentId),
+        ]);
+
+        const idx = (result, name) => result?.columns?.findIndex((c) => c.name === name) ?? -1;
+        const val = (result, name) => {
+            const i = idx(result, name);
+            return i >= 0 && result?.values?.[0] ? Number(result.values[0][i]) : null;
+        };
+
+        const ticketRevenue = val(ticketResult, 'ticket_revenue');
+        const retailRevenue = val(retailResult, 'retail_revenue');
+
+        return {
+            ticketScans: val(ticketResult, 'scans'),
+            ticketRevenue,
+            avgTicketPrice: val(ticketResult, 'avg_price'),
+            retailTransactions: val(retailResult, 'txns'),
+            retailRevenue,
+            retailUnits: val(retailResult, 'units_sold'),
+            avgRetailTicket: val(retailResult, 'avg_txn'),
+            posTransactions: val(retailResult, 'txns'),
+            posRevenue: retailRevenue,
+            avgPosTicket: val(retailResult, 'avg_txn'),
+            combinedRevenue: ticketRevenue != null && retailRevenue != null ? ticketRevenue + retailRevenue : null,
+            resaleScans: val(resaleResult, 'resale'),
+            catalogItemCount: 100,
+        };
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) {
+            return {
+                ticketScans: null,
+                ticketRevenue: null,
+                avgTicketPrice: null,
+                retailTransactions: null,
+                retailRevenue: null,
+                retailUnits: null,
+                avgRetailTicket: null,
+                posTransactions: null,
+                posRevenue: null,
+                avgPosTicket: null,
+                combinedRevenue: null,
+                resaleScans: null,
+                catalogItemCount: 100,
+            };
+        }
+        throw error;
+    }
+}
+
+/** @param {string} [agentId] @returns {Promise<Array<Object>>} */
+export async function getGamedayTicketRevenueByFanTier(agentId = GAMEDAY_AGENT) {
+    const query = 'FROM paciolan-ticket-events | STATS revenue = SUM(ticket_price), scans = COUNT(*) BY fan_tier | SORT revenue DESC | LIMIT 10';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/** @param {string} [agentId] @returns {Promise<Array<Object>>} */
+export async function getGamedayTicketRevenueByType(agentId = GAMEDAY_AGENT) {
+    const query = 'FROM paciolan-ticket-events | STATS revenue = SUM(ticket_price), scans = COUNT(*) BY ticket_type | SORT revenue DESC | LIMIT 10';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/** @param {string} [agentId] @returns {Promise<Array<Object>>} */
+export async function getGamedayGateTraffic(agentId = GAMEDAY_AGENT) {
+    const query = 'FROM paciolan-ticket-events | STATS scans = COUNT(*), revenue = SUM(ticket_price) BY gate | SORT scans DESC | LIMIT 8';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/** @param {string} [agentId] @returns {Promise<Array<Object>>} */
+export async function getGamedayRetailByCategory(agentId = GAMEDAY_AGENT) {
+    const query = 'FROM stadium-retail-sales | STATS revenue = SUM(total_amount), units = SUM(quantity), txns = COUNT(*) BY category | SORT revenue DESC | LIMIT 10';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/** @param {string} [agentId] @returns {Promise<Array<Object>>} */
+export async function getGamedayTopRetailItems(agentId = GAMEDAY_AGENT, limit = 15) {
+    const query = `FROM stadium-retail-sales | STATS revenue = SUM(total_amount), units = SUM(quantity), txns = COUNT(*) BY sku, item_name, category | SORT revenue DESC | LIMIT ${Math.min(limit, 25)}`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/** Full 100-item stadium retail catalog (campus bookstore / team store SKUs). @param {string} [agentId] */
+export async function getGamedayRetailCatalog(agentId = GAMEDAY_AGENT) {
+    const query = 'FROM stadium-retail-catalog | KEEP sku, item_name, category, subcategory, unit_price, available_stadium | SORT category ASC, item_name ASC | LIMIT 100';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/** @param {string} [agentId] @returns {Promise<Array<Object>>} */
+export async function getGamedayRetailByLocation(agentId = GAMEDAY_AGENT) {
+    const query = 'FROM stadium-retail-sales | STATS revenue = SUM(total_amount), units = SUM(quantity), txns = COUNT(*) BY location_name | SORT revenue DESC | LIMIT 8';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/** @deprecated Use getGamedayRetailByCategory — concessions index no longer used in dashboard */
+export async function getGamedayPosRevenueByCategory(agentId = GAMEDAY_AGENT) {
+    return getGamedayRetailByCategory(agentId);
+}
+
+/** @deprecated Use getGamedayRetailByLocation */
+export async function getGamedayPosRevenueByZone(agentId = GAMEDAY_AGENT) {
+    const query = 'FROM stadium-retail-sales | STATS revenue = SUM(total_amount), txns = COUNT(*) BY location_zone | SORT revenue DESC | LIMIT 8';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+/** @deprecated Use getGamedayRetailByLocation */
+export async function getGamedayTopConcessionStands(agentId = GAMEDAY_AGENT) {
+    return getGamedayRetailByLocation(agentId);
+}
+
+/** @param {string} [agentId] @returns {Promise<Array<Object>>} */
+export async function getGamedayHourlyGateScans(agentId = GAMEDAY_AGENT) {
+    const query = 'FROM paciolan-ticket-events | EVAL hour = DATE_TRUNC(1 hour, scan_timestamp) | STATS scans = COUNT(*) BY hour | SORT hour ASC | LIMIT 24';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return [];
+        throw error;
+    }
+}
+
+const OK_FRAUD_AGENT = 'ok-fraud';
+
+async function runOkFraudEsql(query) {
+    try {
+        const result = await fetchESQLQuery(query, {}, OK_FRAUD_AGENT);
+        return mapEsqlRows(result);
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return null;
+        throw error;
+    }
+}
+
+/**
+ * High-risk fraud claims count (Risk_Score >= 75).
+ * @param {string} [agentId]
+ * @returns {Promise<number|null>}
+ */
+export async function getFraudHighRiskClaimCount(agentId = OK_FRAUD_AGENT) {
+    const query = 'FROM ok-fraud* | WHERE Risk_Score >= 75 | STATS high_risk = COUNT(*) | LIMIT 1';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        if (!result?.values?.length) return null;
+        const idx = result.columns.findIndex((c) => c.name === 'high_risk');
+        return idx >= 0 ? Number(result.values[0][idx]) : null;
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return null;
+        throw error;
+    }
+}
+
+/**
+ * Loss totals grouped by Flag_Type.
+ * @param {string} [agentId]
+ * @param {number} [limit]
+ * @returns {Promise<Array<{Flag_Type: string, total_loss: number}>>}
+ */
+export async function getFraudLossByFlagType(agentId = OK_FRAUD_AGENT, limit = 5) {
+    const query = `FROM ok-fraud* | WHERE Flag_Type IS NOT NULL | STATS total_loss = SUM(Total_Loss_Value) BY Flag_Type | SORT total_loss DESC | LIMIT ${Math.min(limit, 20)}`;
+    const rows = await runOkFraudEsql(query);
+    return rows ?? [];
+}
+
+/**
+ * Investigation resolution rate: share of flagged claims with an assigned investigator.
+ * @param {string} [agentId]
+ * @returns {Promise<number|null>} 0–100 percent
+ */
+export async function getFraudInvestigationResolutionRate(agentId = OK_FRAUD_AGENT) {
+    const query = `FROM ok-fraud* | WHERE Flag_Type IS NOT NULL
+| STATS total = COUNT(*), assigned = COUNT(Investigator_Assigned)
+| EVAL resolution_pct = CASE(total > 0, assigned * 100.0 / total, null)
+| LIMIT 1`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        if (!result?.values?.length) return null;
+        const idx = result.columns.findIndex((c) => c.name === 'resolution_pct');
+        const val = idx >= 0 ? Number(result.values[0][idx]) : null;
+        return Number.isFinite(val) ? Math.round(val) : null;
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return null;
+        throw error;
+    }
+}
+
+/**
+ * Crisis call center KPIs from ok-* indices.
+ * @param {string} [agentId]
+ * @returns {Promise<{avgAnswerSeconds: number|null, totalCalls: number|null, avgMcotSeconds: number|null}>}
+ */
+export async function getCrisisCallCenterStats(agentId = OK_FRAUD_AGENT) {
+    const answerQuery = `FROM ok-* | WHERE Call_Start_Timestamp IS NOT NULL AND Call_Answer_Timestamp IS NOT NULL
+| EVAL answer_seconds = DATE_DIFF("s", Call_Start_Timestamp, Call_Answer_Timestamp)
+| STATS avg_answer = AVG(answer_seconds), calls = COUNT(*)
+| LIMIT 1`;
+    const mcotQuery = `FROM ok-* | WHERE Arrival_Timestamp IS NOT NULL AND Dispatch_Timestamp IS NOT NULL
+| EVAL mcot_seconds = DATE_DIFF("s", Dispatch_Timestamp, Arrival_Timestamp)
+| STATS avg_mcot = AVG(mcot_seconds)
+| LIMIT 1`;
+    try {
+        const [answerResult, mcotResult] = await Promise.all([
+            fetchESQLQuery(answerQuery, {}, agentId),
+            fetchESQLQuery(mcotQuery, {}, agentId),
+        ]);
+        const aIdx = answerResult.columns?.findIndex((c) => c.name === 'avg_answer') ?? -1;
+        const cIdx = answerResult.columns?.findIndex((c) => c.name === 'calls') ?? -1;
+        const mIdx = mcotResult.columns?.findIndex((c) => c.name === 'avg_mcot') ?? -1;
+        return {
+            avgAnswerSeconds: aIdx >= 0 ? Number(answerResult.values?.[0]?.[aIdx]) : null,
+            totalCalls: cIdx >= 0 ? Number(answerResult.values?.[0]?.[cIdx]) : null,
+            avgMcotSeconds: mIdx >= 0 ? Number(mcotResult.values?.[0]?.[mIdx]) : null,
+        };
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) {
+            return { avgAnswerSeconds: null, totalCalls: null, avgMcotSeconds: null };
+        }
+        throw error;
+    }
+}
+
+/**
+ * Call disposition breakdown for crisis operations.
+ * @param {string} [agentId]
+ * @param {number} [limit]
+ * @returns {Promise<Array<{Call_Disposition_Code: string, cnt: number}>>}
+ */
+export async function getCrisisCallDispositions(agentId = OK_FRAUD_AGENT, limit = 8) {
+    const query = `FROM ok-* | WHERE Call_Disposition_Code IS NOT NULL | STATS cnt = COUNT(*) BY Call_Disposition_Code | SORT cnt DESC | LIMIT ${Math.min(limit, 20)}`;
+    const rows = await runOkFraudEsql(query);
+    return rows ?? [];
+}
+
+/**
+ * MCOT outcome breakdown.
+ * @param {string} [agentId]
+ * @param {number} [limit]
+ * @returns {Promise<Array<{MCOT_Outcome_Code: string, cnt: number}>>}
+ */
+export async function getCrisisMcotOutcomes(agentId = OK_FRAUD_AGENT, limit = 8) {
+    const query = `FROM ok-* | WHERE MCOT_Outcome_Code IS NOT NULL | STATS cnt = COUNT(*) BY MCOT_Outcome_Code | SORT cnt DESC | LIMIT ${Math.min(limit, 20)}`;
+    const rows = await runOkFraudEsql(query);
+    return rows ?? [];
+}
+
+/**
+ * Discharge housing status breakdown.
+ * @param {string} [agentId]
+ * @param {number} [limit]
+ * @returns {Promise<Array<{Discharge_Housing_Status: string, cnt: number}>>}
+ */
+export async function getCrisisHousingAtDischarge(agentId = OK_FRAUD_AGENT, limit = 8) {
+    const query = `FROM ok-* | WHERE Discharge_Housing_Status IS NOT NULL | STATS cnt = COUNT(*) BY Discharge_Housing_Status | SORT cnt DESC | LIMIT ${Math.min(limit, 20)}`;
+    const rows = await runOkFraudEsql(query);
+    return rows ?? [];
+}
+
+/**
+ * Statewide relapse rate from ok-* client outcome records.
+ * @param {string} [agentId]
+ * @returns {Promise<number|null>} 0–100 percent
+ */
+export async function getClinicalStatewideRelapseRate(agentId = OK_FRAUD_AGENT) {
+    const query = `FROM ok-* | WHERE Relapse_Occurred IS NOT NULL
+| STATS relapse_rate = AVG(CASE(Relapse_Occurred == true, 1.0, 0.0))
+| LIMIT 1`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        if (!result?.values?.length) return null;
+        const idx = result.columns.findIndex((c) => c.name === 'relapse_rate');
+        const val = idx >= 0 ? Number(result.values[0][idx]) : null;
+        return Number.isFinite(val) ? Math.round(val * 100) : null;
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return null;
+        throw error;
+    }
+}
+
+/**
+ * Relapse rate by county (top counties by rate).
+ * @param {string} [agentId]
+ * @param {number} [limit]
+ * @returns {Promise<Array<{County_Of_Relapse: string, relapse_rate: number}>>}
+ */
+export async function getClinicalRelapseByCounty(agentId = OK_FRAUD_AGENT, limit = 10) {
+    const query = `FROM ok-* | WHERE County_Of_Relapse IS NOT NULL
+| STATS relapse_rate = AVG(CASE(Relapse_Occurred == true, 1.0, 0.0)) BY County_Of_Relapse
+| SORT relapse_rate DESC
+| LIMIT ${Math.min(limit, 25)}`;
+    const rows = await runOkFraudEsql(query);
+    return rows ?? [];
+}
+
+/**
+ * Primary substance breakdown from ok-client.
+ * @param {string} [agentId]
+ * @param {number} [limit]
+ * @returns {Promise<Array<{primary_substance: string, cnt: number}>>}
+ */
+export async function getClinicalSubstanceBreakdown(agentId = OK_FRAUD_AGENT, limit = 10) {
+    const query = `FROM ok-client | WHERE primary_substance IS NOT NULL | STATS cnt = COUNT(*) BY primary_substance | SORT cnt DESC | LIMIT ${Math.min(limit, 20)}`;
+    const rows = await runOkFraudEsql(query);
+    return rows ?? [];
+}
+
+/**
+ * Active client count from ok-client.
+ * @param {string} [agentId]
+ * @returns {Promise<number|null>}
+ */
+export async function getClinicalActiveClientCount(agentId = OK_FRAUD_AGENT) {
+    const query = 'FROM ok-client | WHERE status == "Active" | STATS active = COUNT(*) | LIMIT 1';
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        if (!result?.values?.length) return null;
+        const idx = result.columns.findIndex((c) => c.name === 'active');
+        return idx >= 0 ? Number(result.values[0][idx]) : null;
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) return null;
+        throw error;
+    }
+}
+
+/**
+ * Client rows for clinical outcomes table.
+ * @param {string} [agentId]
+ * @param {number} [limit]
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getClinicalClientList(agentId = OK_FRAUD_AGENT, limit = 25) {
+    const query = `FROM ok-client
+| KEEP Client_ID, Name, county, primary_substance, status, @timestamp
+| SORT @timestamp DESC
+| LIMIT ${Math.min(limit, 100)}`;
+    const rows = await runOkFraudEsql(query);
+    return rows ?? [];
+}
+
+/**
+ * Client detail and outcome history.
+ * @param {string} clientId
+ * @param {string} [agentId]
+ * @returns {Promise<{profile: Object|null, outcomes: Array<Object>}>}
+ */
+export async function getClinicalClientDetail(clientId, agentId = OK_FRAUD_AGENT) {
+    if (!clientId || String(clientId).trim() === '') {
+        return { profile: null, outcomes: [] };
+    }
+    const escaped = String(clientId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const profileQuery = `FROM ok-client | WHERE Client_ID == "${escaped}" | LIMIT 1`;
+    const outcomesQuery = `FROM ok-* | WHERE Client_ID == "${escaped}" AND Relapse_Occurred IS NOT NULL
+| KEEP @timestamp, Client_ID, County_Of_Relapse, Relapse_Occurred, primary_substance, status
+| SORT @timestamp DESC
+| LIMIT 50`;
+    try {
+        const [profileResult, outcomesResult] = await Promise.all([
+            fetchESQLQuery(profileQuery, {}, agentId),
+            fetchESQLQuery(outcomesQuery, {}, agentId),
+        ]);
+        const profileRows = mapEsqlRows(profileResult);
+        return {
+            profile: profileRows[0] ?? null,
+            outcomes: mapEsqlRows(outcomesResult),
+        };
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) {
+            return { profile: null, outcomes: [] };
+        }
+        throw error;
+    }
+}
+
+/**
+ * Grant portfolio stats for health-focused programs (ok-grant-data).
+ * @param {Object} [template]
+ * @returns {Promise<{active: number|null, forecasted: number|null, closed: number|null, total: number|null}>}
+ */
+export async function getOkGrantPortfolioStats(template) {
+    const elastic = template?.elastic || {};
+    const index = elastic.grantsDataIndex || 'ok-grant-data';
+    const agentId = elastic.grantsDataAgentId || OK_FRAUD_AGENT;
+    const query = `FROM ${index} | STATS total = COUNT(*), active = COUNT(CASE(status == "active", 1, null)), forecasted = COUNT(CASE(status == "forecasted", 1, null)), closed = COUNT(CASE(status == "closed", 1, null)) | LIMIT 1`;
+    try {
+        const result = await fetchESQLQuery(query, {}, agentId);
+        if (!result?.values?.length) {
+            return { active: null, forecasted: null, closed: null, total: null };
+        }
+        const row = result.values[0];
+        const idx = (name) => result.columns.findIndex((c) => c.name === name);
+        return {
+            total: idx('total') >= 0 ? Number(row[idx('total')]) : null,
+            active: idx('active') >= 0 ? Number(row[idx('active')]) : null,
+            forecasted: idx('forecasted') >= 0 ? Number(row[idx('forecasted')]) : null,
+            closed: idx('closed') >= 0 ? Number(row[idx('closed')]) : null,
+        };
+    } catch (error) {
+        if (error.isIndexNotFound || error.status === 404) {
+            return { active: null, forecasted: null, closed: null, total: null };
+        }
+        throw error;
+    }
+}
+
+/**
+ * Active health-category grant count (catalog fallback when index fields differ).
+ * @param {Object} [template]
+ * @returns {Promise<number|null>}
+ */
+export async function getOkHealthGrantCount(template) {
+    const stats = await getOkGrantPortfolioStats(template);
+    if (stats.active != null) return stats.active;
+    const catalog = template?.grantsCatalog || [];
+    return catalog.filter((g) => g.status === 'active' && g.category === 'health').length;
 }

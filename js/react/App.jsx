@@ -17,15 +17,30 @@ import AnalyticsDashboard from './components/AnalyticsDashboard.jsx';
 import LoginModal from './components/LoginModal.jsx';
 import StudentDashboard from './components/StudentDashboard.jsx';
 import CounselorDashboard from './components/CounselorDashboard.jsx';
-import MentalHealthFraudDashboard from './components/MentalHealthFraudDashboard.jsx';
+import MentalHealthStaffPortal from './components/MentalHealthStaffPortal.jsx';
 import FraudRecipientDetail from './components/FraudRecipientDetail.jsx';
+import ClientOutcomeDetail from './components/ClientOutcomeDetail.jsx';
+import OkMentalHealthPublicSections from './components/OkMentalHealthPublicSections.jsx';
+import OkOjaPublicSections from './components/OkOjaPublicSections.jsx';
+import SnapFraudPublicSections from './components/SnapFraudPublicSections.jsx';
+import WyomingPublicSections from './components/WyomingPublicSections.jsx';
+import OjaStaffPortal from './components/OjaStaffPortal.jsx';
+import SnapFraudStaffPortal from './components/SnapFraudStaffPortal.jsx';
+import WyomingStaffPortal from './components/WyomingStaffPortal.jsx';
+import OjaYouthScorecard from './components/OjaYouthScorecard.jsx';
 import OkCommerceCompanyDashboard from './components/OkCommerceCompanyDashboard.jsx';
 import OkAgencyStaffDashboard from './components/OkAgencyStaffDashboard.jsx';
 import OkAgencyBusinessScorecard from './components/OkAgencyBusinessScorecard.jsx';
 import StateAgencyGrantsSearch from './components/StateAgencyGrantsSearch.jsx';
+import TexasCollegeStaffPortal from './components/TexasCollegeStaffPortal.jsx';
+import OuMetStaffPortal from './components/oumet/OuMetStaffPortal.jsx';
+import OuMetResearcherPortal from './components/oumet/OuMetResearcherPortal.jsx';
+import OuMetCatalogPanel from './components/oumet/OuMetCatalogPanel.jsx';
+import BoosterDonorScorecard from './components/BoosterDonorScorecard.jsx';
 import OkAgencyPortalHeader from './components/okagency/OkAgencyPortalHeader.jsx';
 import OkAgencyFooter from './components/okagency/OkAgencyFooter.jsx';
 import { getApm, setUserContext, clearUserContext } from '../modules/tracing.js';
+import { isAthleticAdvancementTemplate } from '../config/athleticAdvancement.js';
 
 function App() {
     const template = useContext(TemplateContext);
@@ -35,7 +50,10 @@ function App() {
     const [campusId, setCampusId] = useState(null); // Store campus ID from login
     const [headerScrolled, setHeaderScrolled] = useState(false);
     const [fraudRecipientId, setFraudRecipientId] = useState(null);
+    const [clinicalClientId, setClinicalClientId] = useState(null);
     const [okagencyBusinessId, setOkagencyBusinessId] = useState(null);
+    const [boosterDonorId, setBoosterDonorId] = useState(null);
+    const [ojaYouthId, setOjaYouthId] = useState(null);
 
     useEffect(() => {
         console.log('⚛️ React App mounted with template:', template?.name);
@@ -43,7 +61,7 @@ function App() {
 
     // Agency hero overlay: header becomes solid on scroll (okmentalhealth only; okagency uses solid grants search header)
     useEffect(() => {
-        if (!['okmentalhealth', 'dot'].includes(template?.id)) return;
+        if (!['okmentalhealth', 'dot', 'okoja', 'snapfraud', 'wyoming'].includes(template?.id)) return;
         const onScroll = () => setHeaderScrolled(window.scrollY > 60);
         window.addEventListener('scroll', onScroll, { passive: true });
         return () => window.removeEventListener('scroll', onScroll);
@@ -72,7 +90,13 @@ function App() {
         if (password === 'test') {
             setUserRole('student');
             setCampusId(campusId || 'student');
-            setActiveSection(template?.id === 'okagency' ? 'commerce-dashboard' : 'student-dashboard');
+            setActiveSection(
+                template?.id === 'okagency'
+                    ? 'commerce-dashboard'
+                    : template?.id === 'oumet'
+                    ? 'oumet-researcher-dashboard'
+                    : 'student-dashboard',
+            );
             setShowLoginModal(false);
             
             // Set user context for RUM
@@ -132,7 +156,15 @@ function App() {
         setUserRole(null);
         setCampusId(null);
         setOkagencyBusinessId(null);
+        setBoosterDonorId(null);
+        setFraudRecipientId(null);
+        setClinicalClientId(null);
         setActiveSection('home');
+    };
+
+    const handleDonorClick = (donorId) => {
+        setBoosterDonorId(donorId);
+        setActiveSection('booster-donor-scorecard');
     };
 
     if (!template) {
@@ -170,6 +202,10 @@ function App() {
         return <OkCommerceCompanyDashboard onLogout={handleLogout} campusId={campusId} />;
     }
 
+    if (activeSection === 'oumet-researcher-dashboard') {
+        return <OuMetResearcherPortal onLogout={handleLogout} />;
+    }
+
     if (activeSection === 'student-dashboard') {
         return <StudentDashboard onLogout={handleLogout} campusId={campusId} />;
     }
@@ -180,6 +216,19 @@ function App() {
                 medicaidRecipientId={fraudRecipientId}
                 onBack={() => {
                     setFraudRecipientId(null);
+                    setActiveSection('counselor-dashboard');
+                }}
+                onLogout={handleLogout}
+            />
+        );
+    }
+
+    if (activeSection === 'client-outcome-detail' && template?.id === 'okmentalhealth') {
+        return (
+            <ClientOutcomeDetail
+                clientId={clinicalClientId}
+                onBack={() => {
+                    setClinicalClientId(null);
                     setActiveSection('counselor-dashboard');
                 }}
                 onLogout={handleLogout}
@@ -201,15 +250,75 @@ function App() {
         );
     }
 
+    if (activeSection === 'oja-youth-scorecard' && template?.id === 'okoja') {
+        return (
+            <OjaYouthScorecard
+                youthId={ojaYouthId}
+                onBack={() => {
+                    setOjaYouthId(null);
+                    setActiveSection('counselor-dashboard');
+                }}
+                onLogout={handleLogout}
+            />
+        );
+    }
+
+    if (activeSection === 'booster-donor-scorecard' && isAthleticAdvancementTemplate(template)) {
+        return (
+            <BoosterDonorScorecard
+                donorId={boosterDonorId}
+                onBack={() => {
+                    setBoosterDonorId(null);
+                    setActiveSection('counselor-dashboard');
+                }}
+                onLogout={handleLogout}
+                onDonorClick={handleDonorClick}
+            />
+        );
+    }
+
     if (activeSection === 'counselor-dashboard') {
+        if (isAthleticAdvancementTemplate(template)) {
+            return (
+                <TexasCollegeStaffPortal
+                    onLogout={handleLogout}
+                    onDonorClick={handleDonorClick}
+                />
+            );
+        }
+        if (template?.id === 'oumet') {
+            return <OuMetStaffPortal onLogout={handleLogout} />;
+        }
+        if (template?.id === 'okoja') {
+            return (
+                <OjaStaffPortal
+                    onLogout={handleLogout}
+                    onYouthClick={(id) => {
+                        setOjaYouthId(id);
+                        setActiveSection('oja-youth-scorecard');
+                    }}
+                />
+            );
+        }
+        if (template?.id === 'snapfraud') {
+            return <SnapFraudStaffPortal onLogout={handleLogout} />;
+        }
+        if (template?.id === 'wyoming') {
+            return <WyomingStaffPortal onLogout={handleLogout} />;
+        }
         if (template?.id === 'okmentalhealth') {
             return (
-                <MentalHealthFraudDashboard
+                <MentalHealthStaffPortal
                     onLogout={handleLogout}
                     onRecipientClick={(id) => {
                         setFraudRecipientId(id);
                         setActiveSection('fraud-recipient-detail');
                     }}
+                    onClientClick={(id) => {
+                        setClinicalClientId(id);
+                        setActiveSection('client-outcome-detail');
+                    }}
+                    onOpenGrantsSearch={() => setActiveSection('grants-search')}
                 />
             );
         }
@@ -301,11 +410,29 @@ function App() {
     }
 
     // Oklahoma agency–style layout (okagency, okmentalhealth): overlay header, hero, blue bar, promo bar, white main
-    const isAgencyOverlayLayout = ['okagency', 'okmentalhealth', 'dot'].includes(template?.id);
+    const isAgencyOverlayLayout = ['okagency', 'okmentalhealth', 'dot', 'okoja', 'snapfraud', 'wyoming'].includes(template?.id);
     const primaryColor = template?.colors?.primary || '#5D5FEF';
     const secondaryColor = template?.colors?.secondary || '#2E7D32';
     const accentColor = template?.colors?.accent || '#0ea5e9';
     const charcoalColor = template?.colors?.charcoal || '#1e293b';
+
+    if (isAgencyOverlayLayout && template?.id === 'okmentalhealth' && activeSection === 'grants-search') {
+        return (
+            <div className="w-full min-h-screen bg-slate-50" style={{ fontFamily: template?.typography?.fontFamily }}>
+                <a
+                    href="#grants-search-main"
+                    className="sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:block focus:h-auto focus:w-auto focus:overflow-visible focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-slate-900 focus:shadow-lg"
+                >
+                    Skip to grant search
+                </a>
+                <OkAgencyPortalHeader position="fixed" onLoginClick={() => setShowLoginModal(true)} />
+                <StateAgencyGrantsSearch />
+                <OkAgencyFooter />
+                <ChatWidget floating={true} />
+                <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLogin={handleLogin} />
+            </div>
+        );
+    }
 
     if (isAgencyOverlayLayout && template?.id === 'okagency') {
         return (
@@ -520,6 +647,25 @@ function App() {
                     </a>
                 )}
 
+                {template?.id === 'okoja' && (
+                    <OkOjaPublicSections onStaffLoginClick={() => setShowLoginModal(true)} />
+                )}
+
+                {template?.id === 'snapfraud' && (
+                    <SnapFraudPublicSections onStaffLoginClick={() => setShowLoginModal(true)} />
+                )}
+
+                {template?.id === 'wyoming' && (
+                    <WyomingPublicSections onStaffLoginClick={() => setShowLoginModal(true)} />
+                )}
+
+                {template?.id === 'okmentalhealth' && (
+                    <OkMentalHealthPublicSections
+                        onStaffLoginClick={() => setShowLoginModal(true)}
+                        onOpenGrantsSearch={() => setActiveSection('grants-search')}
+                    />
+                )}
+
                 {/* DOT: safety / mission spotlight */}
                 {template?.id === 'dot' && spotlight?.title && (
                     <section className="border-b border-slate-800 bg-slate-900 py-12 text-white md:py-16">
@@ -548,7 +694,7 @@ function App() {
                 )}
 
                 {/* Main content: white, H2 + tagline + news */}
-                <main id={template?.id === 'dot' ? 'dot-main-content' : undefined} className="bg-white py-16">
+                <main id={template?.id === 'dot' ? 'dot-main-content' : (template?.id === 'okmentalhealth' || template?.id === 'okoja' || template?.id === 'snapfraud' || template?.id === 'wyoming') ? 'programs' : undefined} className="bg-white py-16">
                     <div className="max-w-7xl mx-auto px-4">
                         <h2
                             className="text-3xl md:text-4xl font-bold text-center mb-3"
@@ -581,6 +727,18 @@ function App() {
                                 </article>
                             ))}
                         </div>
+                        {template?.id === 'okmentalhealth' && (
+                            <div className="mt-12 text-center">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveSection('grants-search')}
+                                    className="inline-flex items-center gap-2 px-8 py-3 rounded-full text-sm font-bold text-white hover:opacity-90 transition-opacity"
+                                    style={{ backgroundColor: primaryColor }}
+                                >
+                                    Search behavioral health grants
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </main>
 
@@ -622,7 +780,7 @@ function App() {
                     </div>
                 </footer>
 
-                <ChatWidget floating={true} />
+                {template?.chatEnabled !== false && <ChatWidget floating={true} />}
                 <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLogin={handleLogin} />
             </div>
         );
@@ -694,26 +852,30 @@ function App() {
                             >
                                 Home
                             </button>
-                            <button
-                                onClick={() => setActiveSection('search')}
-                                className={`font-medium transition-colors ${
-                                    activeSection === 'search'
-                                        ? 'text-blue-600'
-                                        : 'text-gray-900 hover:text-blue-600'
-                                }`}
-                            >
-                                Search Scholarships
-                            </button>
-                            <button
-                                onClick={() => setActiveSection('analytics')}
-                                className={`font-medium transition-colors ${
-                                    activeSection === 'analytics'
-                                        ? 'text-blue-600'
-                                        : 'text-gray-900 hover:text-blue-600'
-                                }`}
-                            >
-                                Analytics
-                            </button>
+                            {!template.navigation?.hideScholarshipNav && (
+                                <>
+                                    <button
+                                        onClick={() => setActiveSection('search')}
+                                        className={`font-medium transition-colors ${
+                                            activeSection === 'search'
+                                                ? 'text-blue-600'
+                                                : 'text-gray-900 hover:text-blue-600'
+                                        }`}
+                                    >
+                                        Search Scholarships
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveSection('analytics')}
+                                        className={`font-medium transition-colors ${
+                                            activeSection === 'analytics'
+                                                ? 'text-blue-600'
+                                                : 'text-gray-900 hover:text-blue-600'
+                                        }`}
+                                    >
+                                        Analytics
+                                    </button>
+                                </>
+                            )}
                             {template.navigation?.links?.map((link, index) => (
                                 <a
                                     key={index}
@@ -762,16 +924,27 @@ function App() {
                     </p>
                     <div className="flex gap-4 justify-center flex-wrap">
                         <button
+                            type="button"
+                            onClick={() => {
+                                if (template?.id === 'oumet') {
+                                    document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' });
+                                } else {
+                                    setShowLoginModal(true);
+                                }
+                            }}
                             className="px-8 py-3 rounded-full font-semibold text-lg hover:opacity-90 transition-opacity shadow-lg"
                             style={{ backgroundColor: template.colors?.primary || '#5D5FEF' }}
                         >
                             {template.hero?.ctaButtons?.primary || 'Apply Now'}
                         </button>
-                        <button
-                            className="px-8 py-3 rounded-full font-semibold text-lg bg-white text-gray-900 hover:bg-gray-100 transition-colors shadow-lg"
-                        >
-                            {template.hero?.ctaButtons?.secondary || 'Visit Campus'}
-                        </button>
+                        {template.hero?.ctaButtons?.secondary && (
+                            <button
+                                type="button"
+                                className="px-8 py-3 rounded-full font-semibold text-lg bg-white text-gray-900 hover:bg-gray-100 transition-colors shadow-lg"
+                            >
+                                {template.hero.ctaButtons.secondary}
+                            </button>
+                        )}
                     </div>
                 </div>
             </section>
@@ -786,6 +959,8 @@ function App() {
                     {template.content.promoBar?.text ?? ''}
                 </a>
             )}
+
+            {template?.id === 'oumet' && <OuMetCatalogPanel />}
 
             {/* 4. Latest News Section */}
             <section className="py-16 bg-gray-50">

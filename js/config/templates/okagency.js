@@ -42,7 +42,25 @@ export const okagencyTemplate = {
         chatAssistantTitle: 'Carey Grant Bot',
         chatAssistantSubtitle: 'Ask about Oklahoma grants, programs, and how to apply.',
         chatAssistantEmptyBody: 'Ask about state grant opportunities, eligibility, or deadlines.',
-        chatAssistantEmptyTry: 'Try: "What workforce grants are open right now?"',
+        chatAssistantEmptyTry: 'Tap * below for demo queries',
+        chat: {
+            samplePromptsByAgent: {
+                'ok-grants-data': [
+                    { label: 'Open workforce', prompt: 'What workforce grants are open right now?' },
+                    { label: 'Closing soon', prompt: 'Which grants are closing soon?' },
+                    { label: 'Infrastructure', prompt: 'Show infrastructure and broadband grants' },
+                    { label: 'No match', prompt: "Which grants don't require a match?" },
+                    { label: 'Small business', prompt: 'What grants can small businesses apply for?' },
+                    { label: 'Catalog size', prompt: 'How many grants are in the catalog?' },
+                    { label: 'Workforce vs business', prompt: 'Compare workforce training versus small-business awards and recommend a path for a rural manufacturer.', skipFastPath: true },
+                    { label: 'Match tradeoff', prompt: 'How should a city decide between a match-required infrastructure award and a smaller no-match option?', skipFastPath: true },
+                    { label: 'Commissioner brief', prompt: 'What would you brief a county commissioner on before applying for broadband funding?', skipFastPath: true },
+                    { label: 'Missed cycle', prompt: 'Recommend next steps if our nonprofit missed last year\'s workforce cycle.', skipFastPath: true },
+                    { label: 'Forecast vs open', prompt: 'Explain tradeoffs between forecasted and currently open economic development funding.', skipFastPath: true },
+                    { label: 'Two-proposal cap', prompt: 'If staff can only write two proposals this quarter, how should they choose?', skipFastPath: true },
+                ],
+            },
+        },
         grantsSearch: {
             pageTitle: 'Find grants',
             intro:
@@ -182,6 +200,7 @@ export const okagencyTemplate = {
             primeColEngagement: 'Last touch',
             primeColProfile: 'NAICS / size',
             actionEmail: 'Email',
+            generateProgramEmailLabel: 'Email',
             actionCall: 'Call',
             actionSchedule: 'Schedule',
             actionRefer: 'Refer to program',
@@ -307,10 +326,16 @@ export const okagencyTemplate = {
         /** Find Grants results: _search on gawdzilla (ok-fraud proxy + OK_KIBANA_API_KEY) */
         grantsDataIndex: 'ok-grant-data',
         grantsDataAgentId: 'ok-fraud',
-        grantsSearchSize: 10,
+        grantsSearchSize: 500,
         /** Company dashboard “Match grant applications” table: up to this many rows from the same index */
         dashboardGrantsMin: 2,
         dashboardGrantsMax: 5,
+        workflows: {
+            programEmail: {
+                workflowId: 'ok-grant-program-officer-email',
+                toolId: 'ok-grants-program-email-workflow',
+            },
+        },
     },
 
     search: {
@@ -405,4 +430,15 @@ export const okagencyTemplate = {
         { id: 'g24', title: 'Public Library Digital Inclusion', description: 'Devices and hotspots for library patrons.', status: 'active', postAwardInfo: true, isLoan: false, matchRequired: false, matchFunding: 'No', agency: 'education', category: 'education', eligibleApplicant: 'public', disbursementMethod: 'reimbursement', deadline: '2026-05-30', openDate: '2026-01-25', estimatedTotal: 2800000, rangeLowHigh: '$15K – $120K' },
         { id: 'g25', title: 'Mobile Crisis Unit Equipment', description: 'Vehicles and telehealth kits for behavioral health response.', status: 'active', postAwardInfo: true, isLoan: false, matchRequired: true, matchFunding: '15%', agency: 'health', category: 'health', eligibleApplicant: 'public', disbursementMethod: 'mixed', deadline: '2026-08-30', openDate: '2026-03-10', estimatedTotal: 11000000, rangeLowHigh: '$250K – $1.5M' },
     ],
+
+    login: {
+        headline: 'Find grants, track programs, and grow Oklahoma businesses.',
+        ssoButtonLabel: 'SSO through employer',
+        features: [
+            'Search active and forecasted state grant opportunities',
+            'Filter by agency, category, and eligible applicant type',
+            'Review deadlines, match requirements, and funding ranges',
+            'Access program dashboards after authorized sign-in',
+        ],
+    },
 };

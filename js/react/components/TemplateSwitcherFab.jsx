@@ -1,5 +1,5 @@
 /**
- * Small Elasticsearch-style FAB (bottom-left) to switch site templates.
+ * Template switcher FAB — expands into a centered rounded pill bar when opened.
  */
 
 import { useContext, useEffect, useRef, useState } from 'react';
@@ -25,13 +25,13 @@ export default function TemplateSwitcherFab() {
 
     useEffect(() => {
         if (!open) return;
-        const onPointerDown = (e) => {
-            if (rootRef.current && !rootRef.current.contains(e.target)) {
-                setOpen(false);
-            }
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape') setOpen(false);
         };
-        document.addEventListener('pointerdown', onPointerDown, true);
-        return () => document.removeEventListener('pointerdown', onPointerDown, true);
+
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
     }, [open]);
 
     const handleSelect = (id) => {
@@ -49,43 +49,69 @@ export default function TemplateSwitcherFab() {
     const currentId = template?.id;
 
     return (
-        <div ref={rootRef} className="fixed bottom-6 left-4 z-[55] flex flex-col items-start gap-2">
+        <>
             {open && (
                 <div
-                    className="mb-1 min-w-[200px] max-h-[min(50vh,320px)] overflow-y-auto rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white/95 dark:bg-[#161616]/95 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.35)] py-2"
-                    role="menu"
+                    className="fixed inset-0 z-[54] bg-[radial-gradient(circle_at_50%_50%,rgba(93,95,239,0.12),transparent_55%)] bg-black/30 backdrop-blur-[2px]"
+                    aria-hidden="true"
+                    onClick={() => setOpen(false)}
+                />
+            )}
+            <div
+                ref={rootRef}
+                className={`template-bar-root${open ? ' is-open' : ''}`}
+            >
+                <nav
+                    className={`template-bar-shell${open ? ' is-open' : ''}`}
                     aria-label="Choose template"
                 >
-                    {options.map(({ id, name }) => (
-                        <button
-                            key={id}
-                            type="button"
-                            role="menuitem"
-                            onClick={() => handleSelect(id)}
-                            className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors rounded-xl mx-1 ${
-                                id === currentId
-                                    ? 'bg-[var(--primary-color,#5D5FEF)]/15 text-[var(--primary-color,#5D5FEF)]'
-                                    : 'text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
-                            }`}
-                        >
-                            {name}
-                            {id === currentId && (
-                                <span className="ml-2 text-xs opacity-70">(current)</span>
-                            )}
-                        </button>
-                    ))}
-                </div>
-            )}
-            <button
-                type="button"
-                onClick={() => setOpen((v) => !v)}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-white/90 dark:bg-[#161616]/90 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,0,0,0.25)] hover:brightness-105 dark:hover:bg-[#1c1c1c] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FEC514]/80"
-                aria-label={open ? 'Close template menu' : 'Switch site template'}
-                aria-expanded={open}
-                aria-haspopup="menu"
-            >
-                <ElasticMark className="w-9 h-9 rounded-lg" />
-            </button>
-        </div>
+                    {open && (
+                        <div className="template-bar-panel" role="menu">
+                            <div className="template-bar-track">
+                                {options.map(({ id, name, color }, index) => {
+                                    const isCurrent = id === currentId;
+                                    return (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            role="menuitem"
+                                            onClick={() => handleSelect(id)}
+                                            className={`template-bar-item${isCurrent ? ' is-current' : ''}`}
+                                            style={{
+                                                '--accent': color,
+                                                '--delay': `${index * 40}ms`,
+                                            }}
+                                            tabIndex={0}
+                                            aria-current={isCurrent ? 'true' : undefined}
+                                        >
+                                            <span
+                                                className="template-bar-item__swatch"
+                                                style={{ backgroundColor: color }}
+                                                aria-hidden="true"
+                                            />
+                                            <span className="template-bar-item__name">{name}</span>
+                                            {isCurrent && (
+                                                <span className="template-bar-item__badge">Active</span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    <button
+                        type="button"
+                        className="template-bar-toggle focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FEC514]/80"
+                        onClick={() => setOpen((v) => !v)}
+                        aria-label={open ? 'Close template menu' : 'Switch site template'}
+                        aria-expanded={open}
+                        aria-haspopup="menu"
+                    >
+                        <ElasticMark className="w-9 h-9 rounded-lg" />
+                    </button>
+                </nav>
+            </div>
+        </>
     );
 }

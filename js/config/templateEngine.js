@@ -17,6 +17,12 @@ import { beauregardTemplate } from './templates/beauregard.js';
 import { okagencyTemplate } from './templates/okagency.js';
 import { okmentalhealthTemplate } from './templates/okmentalhealth.js';
 import { dotTemplate } from './templates/dot.js';
+import { texascollegeTemplate } from './templates/texascollege.js';
+import { okstateTemplate } from './templates/okstate.js';
+import { okojaTemplate } from './templates/okoja.js';
+import { oumetTemplate } from './templates/oumet.js';
+import { snapfraudTemplate } from './templates/snapfraud.js';
+import { wyomingTemplate } from './templates/wyoming.js';
 import { getEnvVar } from '../modules/utils/getEnvVar.js';
 
 // Template registry
@@ -28,6 +34,12 @@ const templates = {
     okagency: okagencyTemplate,
     okmentalhealth: okmentalhealthTemplate,
     dot: dotTemplate,
+    texascollege: texascollegeTemplate,
+    okstate: okstateTemplate,
+    okoja: okojaTemplate,
+    oumet: oumetTemplate,
+    snapfraud: snapfraudTemplate,
+    wyoming: wyomingTemplate,
 };
 
 /**
@@ -181,5 +193,6 @@ export function getTemplateSwitchOptions() {
     return Object.entries(templates).map(([id, t]) => ({
         id,
         name: t.name || id,
+        color: t.colors?.primary || '#5D5FEF',
     }));
 }
