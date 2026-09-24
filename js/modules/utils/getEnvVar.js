@@ -17,6 +17,22 @@ export function getEnvVar(key, defaultValue = '') {
             return value;
         }
     }
+
+    // Vite client env (prefer VITE_ prefix; also allow exact key if exposed)
+    try {
+        if (typeof import.meta !== 'undefined' && import.meta.env) {
+            const vitePrefixed = import.meta.env[`VITE_${key}`];
+            if (vitePrefixed !== undefined && vitePrefixed !== null) {
+                return vitePrefixed;
+            }
+            const viteExact = import.meta.env[key];
+            if (viteExact !== undefined && viteExact !== null) {
+                return viteExact;
+            }
+        }
+    } catch {
+        /* ignore */
+    }
     
     // Fallback to process.env (for build-time vars in Vite)
     if (typeof process !== 'undefined' && process.env && process.env[key] !== undefined) {

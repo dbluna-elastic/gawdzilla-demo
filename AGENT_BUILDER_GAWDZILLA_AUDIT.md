@@ -15,8 +15,8 @@ This log captures what each Agent Builder agent has today (tools, skills, workfl
 |------|---------------------|
 | Custom ES\|QL / index_search tools | Strong for athletics, SNAP, OJA, OU Met, Wyoming; weak for **ok-fraud** and **ok-grants-data** (mostly `platform.core.*`) |
 | Workflow tools on agents | Partial — email / provision workflows attached on some agents; SNAP case workflows exist but are **not** agent tools |
-| Custom **skills** | Almost unused — only **`okstate-giving-policies`** (on `okstate-donor-assistant`) |
-| Built-in skills (42 available) | Present on cluster; **not assigned** to demo agents |
+| Custom **skills** | **Library in place** — `demo-*` skills assigned per vertical (+ shared gameday / OU Met); source in `docs/agent-builder-skills/` |
+| Built-in skills (42 available) | Present; **`cases-management`** assigned on fraud / SNAP / Wyoming |
 | Plugins | **0** installed |
 | MCP / connectors / Cases / viz / A2A | Available in platform tooling; **not leveraged** by demo agents |
 | Demo app pattern | Heavy **chat fast path** (direct ES\|QL) that bypasses Agent Builder for common prompts |
@@ -337,6 +337,8 @@ Reuse built-ins where relevant: `cases-management`, `workflow-authoring`, `visua
 | Date | Note |
 |------|------|
 | 2026-09-23 | Initial audit against live gawdzilla Kibana **9.5.3** |
+| 2026-09-23 | **Phase 0–1:** `AGENT_FAST_PATH_SKIP`; skill library (`demo-*` hyphen IDs, max 5 tools/skill); Cursor skill `gawdzilla-agent-builder-levelset`. `ok-fraud` ES\|QL tools + `demo-fraud-investigation` + `cases-management`. Converse YTD loss OK. |
+| 2026-09-23 | **Phases 2–9:** Leveled all demo agents with skills/tools/workflows. Skills: `demo-grants-eligibility`, `demo-oja-supervision`, `demo-snap-trafficking`, `demo-athletics-donor-stewardship-tx`, `demo-athletics-gameday-anomaly` (shared), `demo-oumet-delivery-rules` (shared), `demo-wyo-classification`. SNAP workflow tools attached. App SNAP labels + template toolIds fixed. Converse smoke tests passed for grants/oja/snap/booster/gameday/okstate-gameday/ou-met/wyo. Workflow `okstate-alumni-email-workflow` `_execute` with `donor_id` completed successfully on 9.5.3 (re-test `/run` fallback only if chat drops params). Plugins/MCP still deferred. |
 
 *Re-run discovery with:*  
 `GET /api/agent_builder/agents` · `tools` · `skills` · `plugins` · `GET /api/workflows`

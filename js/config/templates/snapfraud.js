@@ -183,8 +183,14 @@ export const snapfraudTemplate = {
             deceasedHousehold: 'hh_deceased_demo_001',
         },
         workflows: {
-            traffickingCase: { workflowId: 'snap-trafficking-case' },
-            nightlySweep: { workflowId: 'snap-nightly-fraud-sweep' },
+            traffickingCase: {
+                workflowId: 'snap-trafficking-case',
+                toolId: 'snap-trafficking-case-workflow',
+            },
+            nightlySweep: {
+                workflowId: 'snap-nightly-fraud-sweep',
+                toolId: 'snap-nightly-fraud-sweep-workflow',
+            },
         },
     },
 

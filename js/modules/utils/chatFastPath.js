@@ -20,15 +20,41 @@ import { tryOkstateGamedayChatFastPath, OKSTATE_GAMEDAY_AGENT } from './okstateG
 import { tryWeatherChatFastPath, CATALOG_AGENT, PROVISIONING_AGENT } from './weatherChatFastPath.js';
 import { trySnapFraudChatFastPath, SNAP_FRAUD_AGENT } from './snapFraudChatFastPath.js';
 import { tryWyoClassifyChatFastPath, WYO_CLASSIFY_AGENT } from './wyoClassifyChatFastPath.js';
+import { getEnvVar } from './getEnvVar.js';
 
 const BOOSTER_AGENT = 'booster-donor-data';
 const OKSTATE_DONOR_AGENT = 'okstate-donor-assistant';
+
+/**
+ * Comma-separated agent IDs that should skip the chat fast path (Agent Builder level-set testing).
+ * @returns {Set<string>}
+ */
+function getFastPathSkipSet() {
+    const raw = getEnvVar('AGENT_FAST_PATH_SKIP', '');
+    if (!raw || typeof raw !== 'string') return new Set();
+    return new Set(
+        raw
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean),
+    );
+}
+
+/**
+ * @param {string} agentId
+ * @returns {boolean}
+ */
+export function isChatFastPathSkipped(agentId) {
+    if (!agentId) return false;
+    return getFastPathSkipSet().has(String(agentId));
+}
 
 /**
  * @param {string} agentId
  * @returns {boolean}
  */
 export function canUseChatFastPath(agentId) {
+    if (isChatFastPathSkipped(agentId)) return false;
     return agentId === BOOSTER_AGENT
         || agentId === OKSTATE_DONOR_AGENT
         || agentId === GRANTS_AGENT
@@ -111,6 +137,10 @@ function donorLink(row) {
  * @returns {Promise<{ output: string }|null>}
  */
 export async function tryChatFastPath(agentId, message) {
+    if (isChatFastPathSkipped(agentId)) {
+        return null;
+    }
+
     if (agentId === GRANTS_AGENT) {
         return tryGrantsChatFastPath(agentId, message);
     }

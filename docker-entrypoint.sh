@@ -52,6 +52,11 @@ if [ -f /usr/share/nginx/html/index.html ]; then
     if [ -n "$ELASTIC_APM_SERVICE_NAME" ]; then
         ENV_SCRIPT="${ENV_SCRIPT}ELASTIC_APM_SERVICE_NAME:'$ELASTIC_APM_SERVICE_NAME',"
     fi
+
+    # Comma-separated agent IDs that skip chat fast path (Agent Builder level-set testing)
+    if [ -n "$AGENT_FAST_PATH_SKIP" ]; then
+        ENV_SCRIPT="${ENV_SCRIPT}AGENT_FAST_PATH_SKIP:'$AGENT_FAST_PATH_SKIP',"
+    fi
     
     # Close the object
     ENV_SCRIPT="${ENV_SCRIPT}};</script>"
