@@ -16,11 +16,103 @@ import {
     fetchESQLQuery,
 } from './elasticApi.js';
 
+/** Default scholarship catalog (ELSER semantic fields). */
+const DEFAULT_SCHOLARSHIP_INDEX = 'scholarship_index_elser';
+
+const SCHOLARSHIP_SOURCE_FIELDS = [
+    'scholarship_name',
+    'award',
+    'deadline',
+    'title',
+    'amount',
+    'url',
+];
+
 /**
- * Search scholarships by major/keyword using RRF (Reciprocal Rank Fusion)
- * 
+ * Build filters that do not exclude catalogs lacking a `state` field.
+ * Docs without `state` still match; docs with `state` must match the template or ALL.
+ *
+ * @param {string} [state]
+ * @param {number} [minAmount]
+ * @returns {Object[]} Elasticsearch filter clauses
+ */
+function buildScholarshipFilters(state, minAmount) {
+    const filters = [];
+
+    if (state) {
+        filters.push({
+            bool: {
+                should: [
+                    { bool: { must_not: { exists: { field: 'state' } } } },
+                    { term: { state: state } },
+                    { term: { 'state.keyword': state } },
+                    { term: { state: 'ALL' } },
+                    { term: { 'state.keyword': 'ALL' } },
+                ],
+                minimum_should_match: 1,
+            },
+        });
+    }
+
+    if (typeof minAmount === 'number' && !Number.isNaN(minAmount)) {
+        filters.push({
+            bool: {
+                should: [
+                    { range: { amount: { gte: minAmount } } },
+                    // award is often text ("Varies"); only constrain when numeric amount exists
+                    { bool: { must_not: { exists: { field: 'amount' } } } },
+                ],
+                minimum_should_match: 1,
+            },
+        });
+    }
+
+    return filters;
+}
+
+/**
+ * Map ES hits to scholarship card objects.
+ *
+ * @param {Object} result - Elasticsearch search response
+ * @returns {{ scholarships: Object[], total: number }}
+ */
+function mapScholarshipHits(result) {
+    const scholarships = (result.hits?.hits || [])
+        .map((hit) => {
+            const source = hit._source || {};
+            const name = source.scholarship_name || source.title || 'Unknown Scholarship';
+
+            if (name.length > 200) {
+                return null;
+            }
+
+            return {
+                id: hit._id,
+                name,
+                amount: source.award || source.amount || 'N/A',
+                deadline: source.deadline || 'N/A',
+                url: source.url || null,
+                title: source.title,
+                award: source.award,
+                score: hit._score,
+            };
+        })
+        .filter((scholarship) => scholarship !== null);
+
+    return {
+        scholarships,
+        total: result.hits?.total?.value || result.hits?.total || 0,
+    };
+}
+
+/**
+ * Search scholarships by major/keyword using RRF (Reciprocal Rank Fusion).
+ * Empty keyword browses the catalog (match_all / exists), so Search is never a silent no-op.
+ *
  * @param {Object} criteria - Search criteria
  * @param {string} criteria.keyword - Search keyword (major, field of study, etc.)
+ * @param {string} [criteria.state] - Optional state filter (soft; catalogs without state still match)
+ * @param {number} [criteria.minAmount] - Optional minimum amount when `amount` is numeric
  * @param {string} criteria.index - Elasticsearch index (default: 'scholarship_index_elser')
  * @param {number} criteria.size - Result limit (default: 50)
  * @returns {Promise<Object>} Search results with mapped scholarship data
@@ -28,103 +120,124 @@ import {
 export async function searchScholarships(criteria = {}) {
     const {
         keyword = '',
-        index = 'scholarship_index_elser',
+        state,
+        minAmount,
+        index = DEFAULT_SCHOLARSHIP_INDEX,
         size = 50,
     } = criteria;
 
-    if (!keyword || keyword.trim() === '') {
+    const trimmedKeyword = (keyword || '').trim();
+    const filters = buildScholarshipFilters(state, minAmount);
+    const filterClause = filters.length > 0 ? { bool: { filter: filters } } : null;
+
+    const withFilters = (innerQuery) => {
+        if (!filterClause) return innerQuery;
         return {
-            scholarships: [],
-            total: 0,
+            bool: {
+                must: [innerQuery],
+                filter: filters,
+            },
+        };
+    };
+
+    let queryBody;
+
+    if (!trimmedKeyword) {
+        queryBody = {
+            query: withFilters({
+                bool: {
+                    should: [
+                        { exists: { field: 'scholarship_name' } },
+                        { exists: { field: 'title' } },
+                    ],
+                    minimum_should_match: 1,
+                },
+            }),
+            size,
+            track_total_hits: true,
+            _source: SCHOLARSHIP_SOURCE_FIELDS,
+        };
+    } else {
+        queryBody = {
+            retriever: {
+                rrf: {
+                    retrievers: [
+                        {
+                            standard: {
+                                query: withFilters({
+                                    multi_match: {
+                                        query: trimmedKeyword,
+                                        fields: ['title', 'award', 'headings'],
+                                    },
+                                }),
+                            },
+                        },
+                        {
+                            standard: {
+                                query: withFilters({
+                                    semantic: {
+                                        field: 'scholarship_name',
+                                        query: trimmedKeyword,
+                                    },
+                                }),
+                            },
+                        },
+                        {
+                            standard: {
+                                query: withFilters({
+                                    semantic: {
+                                        field: 'purpose',
+                                        query: trimmedKeyword,
+                                    },
+                                }),
+                            },
+                        },
+                        {
+                            standard: {
+                                query: withFilters({
+                                    semantic: {
+                                        field: 'scholarship_criteria',
+                                        query: trimmedKeyword,
+                                    },
+                                }),
+                            },
+                        },
+                    ],
+                    rank_window_size: 100,
+                    rank_constant: 60,
+                },
+            },
+            size,
+            _source: SCHOLARSHIP_SOURCE_FIELDS,
         };
     }
 
-    // Build RRF query structure
-    const queryBody = {
-        retriever: {
-            rrf: {
-                retrievers: [
-                    {
-                        standard: {
-                            query: {
-                                multi_match: {
-                                    query: keyword,
-                                    fields: ['title', 'award', 'headings'],
-                                },
-                            },
-                        },
-                    },
-                    {
-                        standard: {
-                            query: {
-                                semantic: {
-                                    field: 'scholarship_name',
-                                    query: keyword,
-                                },
-                            },
-                        },
-                    },
-                    {
-                        standard: {
-                            query: {
-                                semantic: {
-                                    field: 'purpose',
-                                    query: keyword,
-                                },
-                            },
-                        },
-                    },
-                    {
-                        standard: {
-                            query: {
-                                semantic: {
-                                    field: 'scholarship_criteria',
-                                    query: keyword,
-                                },
-                            },
-                        },
-                    },
-                ],
-                rank_window_size: 100,
-                rank_constant: 60,
-            },
-        },
-        size: size,
-        _source: ['scholarship_name', 'award', 'deadline', 'title', 'amount', 'url'],
-    };
-
     try {
         const result = await fetchElasticsearchSearch(index, queryBody);
-        
-        // Map Elasticsearch hits to scholarship objects
-        const scholarships = (result.hits?.hits || [])
-            .map((hit) => {
-                const source = hit._source || {};
-                const name = source.scholarship_name || source.title || 'Unknown Scholarship';
-                
-                // Filter out scholarships with names > 200 characters
-                if (name.length > 200) {
-                    return null;
-                }
-                
-                return {
-                    id: hit._id,
-                    name: name,
-                    amount: source.award || source.amount || 'N/A',
-                    deadline: source.deadline || 'N/A',
-                    url: source.url || null,
-                    title: source.title,
-                    award: source.award,
-                    score: hit._score,
-                };
-            })
-            .filter((scholarship) => scholarship !== null); // Remove filtered items
-
-        return {
-            scholarships,
-            total: result.hits?.total?.value || result.hits?.total || 0,
-        };
+        return mapScholarshipHits(result);
     } catch (error) {
+        // ELSER / retriever failures: fall back to standard multi_match browse
+        if (trimmedKeyword) {
+            console.warn('Scholarship RRF search failed; falling back to multi_match:', error.message);
+            try {
+                const fallbackBody = {
+                    query: withFilters({
+                        multi_match: {
+                            query: trimmedKeyword,
+                            fields: ['title', 'award', 'headings', 'scholarship_name', 'purpose', 'scholarship_criteria'],
+                        },
+                    }),
+                    size,
+                    track_total_hits: true,
+                    _source: SCHOLARSHIP_SOURCE_FIELDS,
+                };
+                const fallbackResult = await fetchElasticsearchSearch(index, fallbackBody);
+                return mapScholarshipHits(fallbackResult);
+            } catch (fallbackError) {
+                console.error('Scholarship search fallback error:', fallbackError);
+                throw fallbackError;
+            }
+        }
         console.error('Scholarship search error:', error);
         throw error;
     }
@@ -242,7 +355,12 @@ export async function getStudentData(studentId, preferredIndex = 'students') {
 
 /**
  * Get analytics and reporting data
- * 
+ *
+ * Uses `last_crawled_at` (catalog crawl time) when `created_date` is absent.
+ * If the time window matches nothing, retries without a date filter so the
+ * dashboard is not blank on older crawls. Amount aggs use `amount` when present
+ * (many catalogs store text in `award` only — those sums stay 0).
+ *
  * @param {Object} options - Analytics options
  * @param {string} options.timeRange - Time range (e.g., "30d", "1y")
  * @param {string[]} options.metrics - Metrics to calculate
@@ -255,10 +373,9 @@ export async function getAnalytics(options = {}) {
         timeRange = '30d',
         metrics = ['count', 'total_amount'],
         state,
-        index = 'scholarship_index_elser',
+        index = DEFAULT_SCHOLARSHIP_INDEX,
     } = options;
 
-    // Build time filter
     const now = new Date();
     let startDate;
     if (timeRange === '30d') {
@@ -266,67 +383,83 @@ export async function getAnalytics(options = {}) {
     } else if (timeRange === '1y') {
         startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     } else {
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Default: 7 days
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
     const startDateStr = startDate.toISOString().split('T')[0];
+    const stateFilters = buildScholarshipFilters(state);
 
-    // Build query with filters
-    const mustClauses = [
-        {
-            range: {
-                created_date: {
-                    gte: startDateStr,
-                },
-            },
-        },
-    ];
-
-    if (state) {
-        mustClauses.push({
-            bool: {
-                should: [
-                    { term: { state: state } },
-                    { term: { state: 'ALL' } },
-                ],
-            },
-        });
-    }
-
-    // Build aggregations
-    const aggs = {};
-    if (metrics.includes('count')) {
-        aggs.total_scholarships = { value_count: { field: '_id' } };
-    }
-    if (metrics.includes('total_amount')) {
-        aggs.total_amount_awarded = { sum: { field: 'amount' } };
-    }
-    if (metrics.includes('avg_amount')) {
-        aggs.average_amount = { avg: { field: 'amount' } };
-    }
-
-    const queryBody = {
-        query: {
-            bool: {
-                must: mustClauses,
-            },
-        },
-        size: 0, // We only want aggregations
-        aggs: Object.keys(aggs).length > 0 ? aggs : undefined,
+    const buildAggs = () => {
+        const aggs = {};
+        if (metrics.includes('total_amount')) {
+            aggs.total_amount_awarded = { sum: { field: 'amount' } };
+        }
+        if (metrics.includes('avg_amount')) {
+            aggs.average_amount = { avg: { field: 'amount' } };
+        }
+        return aggs;
     };
 
-    try {
+    const runAnalyticsQuery = async (includeDateFilter) => {
+        const mustClauses = [];
+
+        if (includeDateFilter) {
+            // Prefer catalog crawl timestamp; keep created_date as alternate
+            mustClauses.push({
+                bool: {
+                    should: [
+                        { range: { last_crawled_at: { gte: startDateStr } } },
+                        { range: { created_date: { gte: startDateStr } } },
+                    ],
+                    minimum_should_match: 1,
+                },
+            });
+        }
+
+        const queryBody = {
+            query: {
+                bool: {
+                    must: mustClauses.length > 0 ? mustClauses : [{ match_all: {} }],
+                    filter: stateFilters.length > 0 ? stateFilters : undefined,
+                },
+            },
+            size: 0,
+            track_total_hits: true,
+            aggs: (() => {
+                const aggs = buildAggs();
+                return Object.keys(aggs).length > 0 ? aggs : undefined;
+            })(),
+        };
+
         const result = await fetchElasticsearchSearch(index, queryBody);
+        const totalHits = result.hits?.total?.value ?? result.hits?.total ?? 0;
         const aggregations = result.aggregations || {};
-        
+
         return {
+            totalHits,
             analytics: {
-                total_scholarships: aggregations.total_scholarships?.value || 0,
+                total_scholarships: typeof totalHits === 'number' ? totalHits : 0,
                 total_amount_awarded: aggregations.total_amount_awarded?.value || 0,
                 average_amount: aggregations.average_amount?.value || 0,
             },
+        };
+    };
+
+    try {
+        let { totalHits, analytics } = await runAnalyticsQuery(true);
+        let usedDateFilter = true;
+
+        // Older crawls fall outside 7d/30d windows — show full catalog metrics
+        if (totalHits === 0) {
+            ({ totalHits, analytics } = await runAnalyticsQuery(false));
+            usedDateFilter = false;
+        }
+
+        return {
+            analytics,
             timeRange,
             metrics,
+            dateFilterApplied: usedDateFilter && totalHits > 0,
         };
     } catch (error) {
         console.error('Analytics query error:', error);

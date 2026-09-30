@@ -105,9 +105,13 @@ function AnalyticsDashboard() {
                             </div>
                         </div>
                         <p className="text-3xl font-bold text-gray-900">
-                            {analytics.analytics.count || 0}
+                            {analytics.analytics.total_scholarships || 0}
                         </p>
-                        <p className="text-sm text-gray-500 mt-2">In the last {timeRange}</p>
+                        <p className="text-sm text-gray-500 mt-2">
+                            {analytics.dateFilterApplied
+                                ? `In the last ${timeRange}`
+                                : 'Across the scholarship catalog'}
+                        </p>
                     </div>
 
                     {/* Total Amount Card */}
@@ -126,7 +130,7 @@ function AnalyticsDashboard() {
                             </div>
                         </div>
                         <p className="text-3xl font-bold text-gray-900">
-                            ${(analytics.analytics.total_amount || 0).toLocaleString()}
+                            ${(analytics.analytics.total_amount_awarded || 0).toLocaleString()}
                         </p>
                         <p className="text-sm text-gray-500 mt-2">Available funding</p>
                     </div>
@@ -147,7 +151,7 @@ function AnalyticsDashboard() {
                             </div>
                         </div>
                         <p className="text-3xl font-bold text-gray-900">
-                            ${Math.round(analytics.analytics.avg_amount || 0).toLocaleString()}
+                            ${Math.round(analytics.analytics.average_amount || 0).toLocaleString()}
                         </p>
                         <p className="text-sm text-gray-500 mt-2">Per scholarship</p>
                     </div>
