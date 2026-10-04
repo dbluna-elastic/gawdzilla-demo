@@ -23,6 +23,7 @@ import { okojaTemplate } from './templates/okoja.js';
 import { oumetTemplate } from './templates/oumet.js';
 import { snapfraudTemplate } from './templates/snapfraud.js';
 import { wyomingTemplate } from './templates/wyoming.js';
+import { ghoststudentsTemplate } from './templates/ghoststudents.js';
 import { getEnvVar } from '../modules/utils/getEnvVar.js';
 
 // Template registry
@@ -40,6 +41,7 @@ const templates = {
     oumet: oumetTemplate,
     snapfraud: snapfraudTemplate,
     wyoming: wyomingTemplate,
+    ghoststudents: ghoststudentsTemplate,
 };
 
 /**
@@ -109,6 +111,7 @@ function applyTemplateStyles(template) {
     
     // Schema: school | agency (for Gov vs School styling and accessibility)
     root.dataset.schema = template.schema || 'school';
+    root.dataset.templateId = template.id || 'default';
     
     // Apply color variables
     if (template.colors) {

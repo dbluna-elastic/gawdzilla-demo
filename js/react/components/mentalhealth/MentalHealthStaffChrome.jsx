@@ -11,13 +11,14 @@ export default function MentalHealthStaffChrome({ onLogout, children, tabs, acti
     const schemaLabels = getSchemaLabels(template);
     const primaryColor = template?.colors?.primary || '#003366';
     const staff = template?.content?.staffDashboard || {};
+    const isGhostStudents = template?.id === 'ghoststudents';
 
     return (
-        <div className="w-full min-h-screen bg-white">
-            <header className="bg-[#1a2332] text-white py-2">
+        <div className={`w-full min-h-screen ${isGhostStudents ? 'ghoststudents-shell' : 'bg-white'}`}>
+            <header className={`${isGhostStudents ? 'ghoststudents-header' : 'bg-[#1a2332]'} text-white py-2`}>
                 <div className="max-w-7xl mx-auto px-4">
                     <div className="flex justify-end items-center gap-4">
-                        <span className="text-sm">{schemaLabels.dashboardStaff}</span>
+                        <span className="text-sm font-semibold">{schemaLabels.dashboardStaff}</span>
                         {onLogout && (
                             <button
                                 type="button"
@@ -31,7 +32,7 @@ export default function MentalHealthStaffChrome({ onLogout, children, tabs, acti
                 </div>
             </header>
 
-            <nav className="bg-white border-b border-gray-200">
+            <nav className={`${isGhostStudents ? 'ghoststudents-nav' : 'bg-white'} border-b border-gray-200`}>
                 <div className="max-w-7xl mx-auto px-4">
                     <div className="flex items-center justify-between h-20 gap-4">
                         <div className="flex items-center min-w-0">
@@ -51,8 +52,8 @@ export default function MentalHealthStaffChrome({ onLogout, children, tabs, acti
                                         onClick={() => onTabChange?.(tab.id)}
                                         className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${
                                             activeTab === tab.id
-                                                ? 'text-white'
-                                                : 'text-gray-700 hover:bg-gray-100'
+                                                ? 'text-white shadow-md'
+                                                : 'text-gray-700 hover:bg-blue-50'
                                         }`}
                                         style={activeTab === tab.id ? { backgroundColor: primaryColor } : undefined}
                                     >
@@ -82,24 +83,24 @@ export default function MentalHealthStaffChrome({ onLogout, children, tabs, acti
                 </div>
             </nav>
 
-            <section className="py-8 bg-white">
+            <section className={`py-8 ${isGhostStudents ? 'ghoststudents-main' : 'bg-white'}`}>
                 <div className="max-w-7xl mx-auto px-4">
                     <h2
-                        className="text-3xl md:text-4xl font-bold mb-2"
+                        className="text-3xl md:text-4xl font-bold mb-2 tracking-tighter"
                         style={{ fontFamily: 'var(--font-family)', color: primaryColor }}
                     >
                         {staff.pageTitle || schemaLabels.dashboardStaff}
                     </h2>
                     {staff.subtitle && (
-                        <p className="text-gray-600 mb-8">{staff.subtitle}</p>
+                        <p className={`mb-8 ${isGhostStudents ? 'text-blue-900/70' : 'text-gray-600'}`}>{staff.subtitle}</p>
                     )}
                     {children}
                 </div>
             </section>
 
-            <footer className="bg-[#1a2332] text-white">
+            <footer className={`${isGhostStudents ? 'ghoststudents-footer' : 'bg-[#1a2332]'} text-white`}>
                 <div className="max-w-7xl mx-auto px-4 py-8">
-                    <p className="text-center text-gray-400 text-sm">
+                    <p className={`text-center text-sm ${isGhostStudents ? 'text-white/85' : 'text-gray-400'}`}>
                         © 2026 {template.branding.institutionName}. All Rights Reserved.
                     </p>
                 </div>

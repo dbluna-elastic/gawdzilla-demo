@@ -229,3 +229,32 @@ body {
 [data-schema="agency"] .bg-gray-50 {
     background-color: var(--gov-bg-subtle);
 }
+
+/* Ghost students template — blue & gold with cartoon ghost wallpaper */
+[data-template-id="ghoststudents"] {
+    --ghost-bg: #E8F1FB;
+    --ghost-bg-deep: #D6E6F7;
+}
+[data-template-id="ghoststudents"] body {
+    background-color: var(--ghost-bg);
+}
+.ghoststudents-shell {
+    background-color: #E8F1FB;
+    background-image:
+        linear-gradient(180deg, rgba(232, 241, 251, 0.86), rgba(214, 230, 247, 0.9)),
+        url('/ghoststudents-ghosts.svg');
+    background-size: auto, 280px 280px;
+    background-repeat: repeat;
+    background-attachment: fixed;
+}
+.ghoststudents-shell .ghoststudents-main {
+    background: transparent;
+}
+.ghoststudents-shell .ghoststudents-nav {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+}
+.ghoststudents-shell .ghoststudents-header,
+.ghoststudents-shell .ghoststudents-footer {
+    background: linear-gradient(90deg, #0B3D91, #1A56B0, #D4A017);
+}

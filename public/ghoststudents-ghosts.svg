@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+  <defs>
+    <style>
+      .g { fill: #F8FAFC; stroke: #93C5FD; stroke-width: 3; }
+      .e { fill: #0B3D91; }
+      .b { fill: #D4A017; }
+      .c { fill: #60A5FA; opacity: 0.85; }
+    </style>
+  </defs>
+  <g transform="translate(28,36)">
+    <path class="g" d="M40 18c-18 0-32 16-32 40v54c0 4 3 6 6 4l10-8 10 10c2 2 5 2 7 0l9-10 9 10c2 2 5 2 7 0l10-10 10 8c3 2 6 0 6-4V58c0-24-14-40-32-40z"/>
+    <circle class="e" cx="28" cy="52" r="5"/>
+    <circle class="e" cx="52" cy="52" r="5"/>
+    <ellipse class="b" cx="40" cy="68" rx="7" ry="4"/>
+  </g>
+  <g transform="translate(180,20) scale(0.85)">
+    <path class="g" d="M40 18c-18 0-32 16-32 40v54c0 4 3 6 6 4l10-8 10 10c2 2 5 2 7 0l9-10 9 10c2 2 5 2 7 0l10-10 10 8c3 2 6 0 6-4V58c0-24-14-40-32-40z"/>
+    <circle class="e" cx="28" cy="52" r="5"/>
+    <circle class="e" cx="52" cy="52" r="5"/>
+    <ellipse class="c" cx="40" cy="68" rx="7" ry="4"/>
+  </g>
+  <g transform="translate(100,150) scale(1.05)">
+    <path class="g" d="M40 18c-18 0-32 16-32 40v54c0 4 3 6 6 4l10-8 10 10c2 2 5 2 7 0l9-10 9 10c2 2 5 2 7 0l10-10 10 8c3 2 6 0 6-4V58c0-24-14-40-32-40z"/>
+    <circle class="e" cx="28" cy="50" r="5.5"/>
+    <circle class="e" cx="52" cy="50" r="5.5"/>
+    <path d="M32 66c4 6 12 6 16 0" fill="none" stroke="#0B3D91" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(230,190) scale(0.7)">
+    <path class="g" d="M40 18c-18 0-32 16-32 40v54c0 4 3 6 6 4l10-8 10 10c2 2 5 2 7 0l9-10 9 10c2 2 5 2 7 0l10-10 10 8c3 2 6 0 6-4V58c0-24-14-40-32-40z"/>
+    <circle class="e" cx="28" cy="52" r="5"/>
+    <circle class="e" cx="52" cy="52" r="5"/>
+    <ellipse class="b" cx="40" cy="68" rx="7" ry="4"/>
+  </g>
+  <g transform="translate(20,210) scale(0.55)">
+    <path class="g" d="M40 18c-18 0-32 16-32 40v54c0 4 3 6 6 4l10-8 10 10c2 2 5 2 7 0l9-10 9 10c2 2 5 2 7 0l10-10 10 8c3 2 6 0 6-4V58c0-24-14-40-32-40z"/>
+    <circle class="e" cx="28" cy="52" r="5"/>
+    <circle class="e" cx="52" cy="52" r="5"/>
+  </g>
+</svg>

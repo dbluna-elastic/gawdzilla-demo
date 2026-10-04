@@ -54,6 +54,7 @@ Front matter is used by `scripts/syncAgentBuilderSkill.py` to call the Kibana AP
 | `demo-grants-eligibility` | `ok-grants-data` | 2 |
 | `demo-oja-supervision` | `ok-oja-data` | 3 |
 | `demo-snap-trafficking` | `snap-fraud-investigator` | 4 |
+| `demo-ghost-aid-integrity` | `rrp-aid-integrity` | 5 |
 | `demo-athletics-donor-stewardship-tx` | `booster-donor-data` | 5 |
 | `demo-athletics-gameday-anomaly` | both gameday agents | 5–6 |
 | `okstate-giving-policies` | `okstate-donor-assistant` | (existing) |
