@@ -41,6 +41,9 @@ import OuMetCatalogPanel from './components/oumet/OuMetCatalogPanel.jsx';
 import BoosterDonorScorecard from './components/BoosterDonorScorecard.jsx';
 import OkAgencyPortalHeader from './components/okagency/OkAgencyPortalHeader.jsx';
 import OkAgencyFooter from './components/okagency/OkAgencyFooter.jsx';
+import CivicPublicHeader from './components/civic/CivicPublicHeader.jsx';
+import CivicServiceRow from './components/civic/CivicServiceRow.jsx';
+import CivicPublicFooter from './components/civic/CivicPublicFooter.jsx';
 import { getApm, setUserContext, clearUserContext } from '../modules/tracing.js';
 import { isAthleticAdvancementTemplate } from '../config/athleticAdvancement.js';
 
@@ -50,7 +53,6 @@ function App() {
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [userRole, setUserRole] = useState(null); // 'student' | 'counselor' | null
     const [campusId, setCampusId] = useState(null); // Store campus ID from login
-    const [headerScrolled, setHeaderScrolled] = useState(false);
     const [fraudRecipientId, setFraudRecipientId] = useState(null);
     const [clinicalClientId, setClinicalClientId] = useState(null);
     const [okagencyBusinessId, setOkagencyBusinessId] = useState(null);
@@ -60,14 +62,6 @@ function App() {
     useEffect(() => {
         console.log('⚛️ React App mounted with template:', template?.name);
     }, [template]);
-
-    // Agency hero overlay: header becomes solid on scroll (okmentalhealth only; okagency uses solid grants search header)
-    useEffect(() => {
-        if (!['okmentalhealth', 'dot', 'okoja', 'snapfraud', 'wyoming', 'ghoststudents'].includes(template?.id)) return;
-        const onScroll = () => setHeaderScrolled(window.scrollY > 60);
-        window.addEventListener('scroll', onScroll, { passive: true });
-        return () => window.removeEventListener('scroll', onScroll);
-    }, [template?.id]);
 
     // Track route changes for RUM
     useEffect(() => {
@@ -418,7 +412,6 @@ function App() {
     const isAgencyOverlayLayout = ['okagency', 'okmentalhealth', 'dot', 'okoja', 'snapfraud', 'wyoming', 'ghoststudents'].includes(template?.id);
     const primaryColor = template?.colors?.primary || '#5D5FEF';
     const secondaryColor = template?.colors?.secondary || '#2E7D32';
-    const accentColor = template?.colors?.accent || '#0ea5e9';
     const charcoalColor = template?.colors?.charcoal || '#1e293b';
 
     if (isAgencyOverlayLayout && template?.id === 'okmentalhealth' && activeSection === 'grants-search') {
@@ -465,60 +458,37 @@ function App() {
         const featuredBanner = dotLanding.featuredBanner;
         const quickTiles = Array.isArray(dotLanding.quickTiles) ? dotLanding.quickTiles : [];
         const spotlight = dotLanding.spotlight;
+        const headingFont = template?.typography?.headingFontFamily || template?.typography?.fontFamily;
+        const civicServiceTiles =
+            template?.id === 'dot'
+                ? quickTiles
+                : template?.id === 'okmentalhealth'
+                    ? (template.content?.crisisLanding?.tiles || [])
+                    : (template.content?.programsLanding?.tiles || []);
+
+        const handleCivicTileClick = (tile, e) => {
+            if (tile.href === '#staff-login') {
+                e.preventDefault();
+                setShowLoginModal(true);
+            }
+            if (template?.id === 'okmentalhealth' && (tile.href === '#programs' || tile.href === '#grants-search')) {
+                e.preventDefault();
+                setActiveSection('grants-search');
+            }
+        };
+
+        const primaryCta = template.hero?.ctaButtons?.primary || template.content?.ctaText || 'Explore services';
+        const secondaryCta = template.hero?.ctaButtons?.secondary || template.content?.ctaSecondary || 'Staff login';
 
         return (
-            <div className="w-full min-h-screen bg-white" style={{ fontFamily: template?.typography?.fontFamily }}>
-                {template?.id === 'dot' && (
-                    <a
-                        href="#dot-main-content"
-                        className="sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:block focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-slate-900 focus:shadow-lg"
-                    >
-                        {dotLanding.skipToContent || 'Skip to main content'}
-                    </a>
-                )}
-                {/* Overlay Header: transparent on hero, solid on scroll */}
-                <header
-                    className={`fixed top-0 left-0 right-0 z-40 flex h-16 items-center justify-between px-4 transition-all duration-300 md:px-8 ${
-                        headerScrolled ? 'shadow-md' : 'bg-transparent'
-                    }`}
-                    style={headerScrolled ? { backgroundColor: primaryColor } : undefined}
-                >
-                    <div className="flex items-center gap-3">
-                        <img
-                            src={template.branding?.logo ?? ''}
-                            alt={template.branding?.institutionName ?? ''}
-                            className="h-9 w-auto"
-                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling?.classList.remove('hidden'); }}
-                        />
-                        <span className="text-lg font-bold text-white hidden">
-                            {template.branding?.institutionName ?? 'State Agency'}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 md:gap-4">
-                        <button className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors" aria-label="Search">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </button>
-                        <button className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors" aria-label="Language">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </button>
-                        <button className="px-3 py-1.5 text-white text-sm font-semibold border border-white/60 rounded hover:bg-white/10 transition-colors">
-                            {template?.header?.menuLabel ?? 'MENU'}
-                        </button>
-                        <button
-                            onClick={() => setShowLoginModal(true)}
-                            className="px-4 py-1.5 text-sm font-medium text-white hover:bg-white/10 rounded transition-colors"
-                        >
-                            Login
-                        </button>
-                    </div>
-                </header>
+            <div className="w-full min-h-screen bg-white text-[#1b1b1b]" style={{ fontFamily: template?.typography?.fontFamily }}>
+                <CivicPublicHeader
+                    onLoginClick={() => setShowLoginModal(true)}
+                    skipHref={template?.id === 'dot' ? '#dot-main-content' : '#civic-main'}
+                />
 
-                {/* Hero: full-bleed image + overlay, H1 + sub, scroll indicator bottom-left */}
-                <section className="relative min-h-[90vh] flex flex-col justify-center text-white">
+                {/* USWDS / NIH-style hero — brand-first, full-bleed photo, primary wash */}
+                <section className="relative flex min-h-[420px] flex-col justify-end pb-16 text-white md:min-h-[520px] md:pb-20">
                     <div
                         className="absolute inset-0 bg-cover bg-center"
                         style={{
@@ -527,50 +497,68 @@ function App() {
                     />
                     <div
                         className="absolute inset-0"
-                        style={{ backgroundColor: 'rgba(0, 51, 102, 0.72)' }}
+                        style={{
+                            background: `linear-gradient(105deg, ${primaryColor}f2 0%, ${primaryColor}cc 42%, rgba(27,27,27,0.55) 100%)`,
+                        }}
                     />
-                    <div className="relative z-10 max-w-4xl mx-auto px-4 md:px-8 text-center pt-16">
-                        <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight" style={{ fontFamily: template?.typography?.fontFamily }}>
-                            {template.hero?.mainHeading ?? 'Building Businesses and Communities'}
-                        </h1>
-                        <p className="text-lg md:text-xl font-normal opacity-95 max-w-2xl mx-auto">
-                            {template.hero?.subHeading ?? 'Learn more about what makes Oklahoma the land of opportunity.'}
+                    <div className="relative z-10 mx-auto w-full max-w-[64rem] px-4 py-10 md:px-8 md:py-14">
+                        <p className="mb-3 text-sm font-bold uppercase tracking-[0.12em] text-white/90">
+                            {template.branding?.institutionName}
                         </p>
-                    </div>
-                    {/* Scroll indicator bottom-left */}
-                    <div className="absolute bottom-8 left-6 md:left-10 z-10 flex flex-col items-center gap-1 text-white/90">
-                        <span className="text-xs font-semibold uppercase tracking-wider">
-                            {template.content?.blueBar?.scrollPromptText ?? 'Scroll to learn more'}
-                        </span>
-                        <div className="w-10 h-12 rounded-full border-2 border-white/80 flex items-start justify-center pt-2">
-                            <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                            </svg>
+                        <h1
+                            className="mb-4 max-w-3xl text-4xl font-bold leading-tight md:text-5xl lg:text-[3.25rem]"
+                            style={{ fontFamily: headingFont }}
+                        >
+                            {template.hero?.mainHeading ?? template.content?.heroTitle ?? 'Building Businesses and Communities'}
+                        </h1>
+                        <p className="mb-8 max-w-2xl text-lg leading-relaxed text-white/95 md:text-xl">
+                            {template.hero?.subHeading ?? template.content?.heroSubtitle ?? 'Learn more about what makes Oklahoma the land of opportunity.'}
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                            <a
+                                href="#civic-main"
+                                className="inline-flex items-center rounded px-6 py-3 text-sm font-bold text-[#1b1b1b] hover:brightness-95"
+                                style={{ backgroundColor: '#face00' }}
+                            >
+                                {primaryCta}
+                            </a>
+                            <button
+                                type="button"
+                                onClick={() => setShowLoginModal(true)}
+                                className="inline-flex items-center rounded border-2 border-white px-6 py-3 text-sm font-bold text-white hover:bg-white hover:text-[#1b1b1b]"
+                            >
+                                {secondaryCta}
+                            </button>
                         </div>
                     </div>
                 </section>
 
-                {/* DOT: featured announcement strip (TxDOT-style, template-driven) */}
+                <CivicServiceRow
+                    tiles={civicServiceTiles}
+                    onTileClick={handleCivicTileClick}
+                    sectionId={template?.id === 'okmentalhealth' ? 'crisis' : 'programs'}
+                />
+
                 {template?.id === 'dot' && featuredBanner?.title && (
                     <a
                         href={featuredBanner.href || '#'}
-                        className="block w-full border-b border-slate-200 bg-white py-5 text-left shadow-sm transition-colors hover:bg-slate-50"
+                        className="block w-full border-y border-[#dfe1e2] bg-[#f0f0f0] py-6 text-left transition-colors hover:bg-[#e6e6e6]"
                     >
-                        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 md:flex-row md:items-center md:justify-between md:px-8">
+                        <div className="mx-auto flex max-w-[64rem] flex-col gap-2 px-4 md:flex-row md:items-center md:justify-between md:px-8">
                             <div>
                                 {featuredBanner.eyebrow && (
-                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#565c65]">
                                         {featuredBanner.eyebrow}
                                     </p>
                                 )}
                                 <h2
-                                    className="text-xl font-black tracking-tight text-slate-900 md:text-2xl"
-                                    style={{ fontFamily: template?.typography?.fontFamily }}
+                                    className="text-xl font-bold text-[#1b1b1b] md:text-2xl"
+                                    style={{ fontFamily: headingFont }}
                                 >
                                     {featuredBanner.title}
                                 </h2>
                                 {featuredBanner.subtitle && (
-                                    <p className="mt-1 max-w-3xl text-sm text-slate-600 md:text-base">{featuredBanner.subtitle}</p>
+                                    <p className="mt-1 max-w-3xl text-sm text-[#565c65] md:text-base">{featuredBanner.subtitle}</p>
                                 )}
                             </div>
                             {featuredBanner.linkText && (
@@ -585,71 +573,17 @@ function App() {
                     </a>
                 )}
 
-                {/* Blue bar: newsletter + sidebar icons */}
-                <div
-                    className="w-full flex flex-wrap items-center justify-between gap-4 py-3 px-4 md:px-8 text-white"
-                    style={{ backgroundColor: primaryColor }}
-                >
-                    <a
-                        href="#newsletter"
-                        className="inline-flex items-center gap-2 font-semibold hover:opacity-90 transition-opacity"
+                {template.content?.promoBar && (
+                    <div
+                        className="border-y border-black/10 px-4 py-3 text-center text-sm font-bold text-white md:px-8"
+                        style={{ backgroundColor: secondaryColor }}
+                        role="region"
+                        aria-label="Important notice"
                     >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        {template.content?.blueBar?.newsletterText ?? 'Sign up for our Newsletter'}
-                    </a>
-                    <div className="flex items-center gap-3">
-                        <a href="#email" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors" aria-label="Email">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                        </a>
-                        <a href="#documents" className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors" aria-label="Documents">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
+                        <a href={template.content.promoBar?.href || '#'} className="hover:underline">
+                            {template.content.promoBar?.text ?? ''}
                         </a>
                     </div>
-                </div>
-
-                {/* DOT: quick service tiles */}
-                {template?.id === 'dot' && quickTiles.length > 0 && (
-                    <section className="border-b border-slate-200 bg-slate-100 py-10 md:py-12" aria-label="Popular services">
-                        <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:grid-cols-2 lg:grid-cols-4 md:px-8">
-                            {quickTiles.map((tile, idx) => (
-                                <a
-                                    key={idx}
-                                    href={tile.href || '#'}
-                                    className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-                                >
-                                    <h3
-                                        className="text-base font-bold text-slate-900 group-hover:underline"
-                                        style={{ color: primaryColor }}
-                                    >
-                                        {tile.label}
-                                    </h3>
-                                    {tile.description && (
-                                        <p className="mt-2 flex-1 text-sm leading-snug text-slate-600">{tile.description}</p>
-                                    )}
-                                    <span className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-400">
-                                        {dotLanding.tileCta || 'Learn more'} →
-                                    </span>
-                                </a>
-                            ))}
-                        </div>
-                    </section>
-                )}
-
-                {/* Green feature banner */}
-                {template.content?.promoBar && (
-                    <a
-                        href={template.content.promoBar?.href || '#'}
-                        className="block w-full py-4 text-center text-white font-semibold hover:opacity-95 transition-opacity"
-                        style={{ backgroundColor: secondaryColor }}
-                    >
-                        {template.content.promoBar?.text ?? ''}
-                    </a>
                 )}
 
                 {template?.id === 'okoja' && (
@@ -677,23 +611,23 @@ function App() {
 
                 {/* DOT: safety / mission spotlight */}
                 {template?.id === 'dot' && spotlight?.title && (
-                    <section className="border-b border-slate-800 bg-slate-900 py-12 text-white md:py-16">
-                        <div className="mx-auto max-w-4xl px-4 text-center md:px-8">
+                    <section className="border-b border-[#dfe1e2] bg-[#1b1b1b] py-14 text-white md:py-16">
+                        <div className="mx-auto max-w-[64rem] px-4 text-left md:px-8 md:text-center">
                             <h2
-                                className="text-2xl font-black tracking-tight md:text-3xl"
-                                style={{ fontFamily: template?.typography?.fontFamily }}
+                                className="text-2xl font-bold md:text-3xl"
+                                style={{ fontFamily: headingFont }}
                             >
                                 {spotlight.title}
                             </h2>
                             {spotlight.body && (
-                                <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-white/85 md:text-lg">
+                                <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-white/90 md:text-lg">
                                     {spotlight.body}
                                 </p>
                             )}
                             {spotlight.linkText && (
                                 <a
                                     href={spotlight.href || '#'}
-                                    className="mt-6 inline-block rounded-full border-2 border-white/70 px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-white/10"
+                                    className="mt-6 inline-block rounded border-2 border-white px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-white hover:text-[#1b1b1b]"
                                 >
                                     {spotlight.linkText}
                                 </a>
@@ -702,46 +636,42 @@ function App() {
                     </section>
                 )}
 
-                {/* Main content: white, H2 + tagline + news */}
-                <main id={template?.id === 'dot' ? 'dot-main-content' : (template?.id === 'okmentalhealth' || template?.id === 'okoja' || template?.id === 'snapfraud' || template?.id === 'wyoming' || template?.id === 'ghoststudents') ? 'programs' : undefined} className="bg-white py-16">
-                    <div className="max-w-7xl mx-auto px-4">
+                <main id={template?.id === 'dot' ? 'dot-main-content' : 'civic-main'} className="bg-[#f0f0f0] py-16">
+                    <div className="mx-auto max-w-[64rem] px-4 md:px-8">
+                        <p className="mb-2 text-sm font-bold uppercase tracking-[0.12em] text-[#565c65]">
+                            {template.content?.mainTagline ?? 'A GLOBAL VISION WITH A LOCAL FOCUS'}
+                        </p>
                         <h2
-                            className="text-3xl md:text-4xl font-bold text-center mb-3"
-                            style={{ color: charcoalColor, fontFamily: template?.typography?.fontFamily }}
+                            className="mb-10 text-3xl font-bold text-[#1b1b1b] md:text-4xl"
+                            style={{ fontFamily: headingFont, color: charcoalColor }}
                         >
                             {template.content?.mainHeading ?? "North America's Central Location for Business"}
                         </h2>
-                        <p
-                            className="text-center text-lg font-medium mb-12"
-                            style={{ color: accentColor }}
-                        >
-                            {template.content?.mainTagline ?? 'A GLOBAL VISION WITH A LOCAL FOCUS'}
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                             {newsItems.map((item, index) => (
-                                <article key={index} className="bg-gray-50 rounded-xl overflow-hidden hover:shadow-lg transition-shadow border border-gray-100">
-                                    <div className="aspect-video overflow-hidden">
-                                        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                <article key={index} className="flex flex-col overflow-hidden rounded border border-[#dfe1e2] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
+                                    <div className="aspect-[16/9] overflow-hidden">
+                                        <img src={item.image} alt="" className="h-full w-full object-cover" />
                                     </div>
-                                    <div className="p-6">
-                                        <span className="text-sm font-semibold uppercase tracking-wide block mb-2" style={{ color: primaryColor }}>
+                                    <div className="flex flex-1 flex-col p-6">
+                                        <span className="mb-2 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: primaryColor }}>
                                             {item.category}
                                         </span>
-                                        <h3 className="text-xl font-bold mb-3" style={{ color: charcoalColor }}>{item.title}</h3>
-                                        <p className="text-gray-600 mb-4">{item.description}</p>
-                                        <a href="#" className="font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all" style={{ color: primaryColor }}>
-                                            Read More →
+                                        <h3 className="mb-3 text-xl font-bold" style={{ fontFamily: headingFont, color: charcoalColor }}>{item.title}</h3>
+                                        <p className="mb-4 flex-1 text-[#565c65]">{item.description}</p>
+                                        <a href="#" className="inline-flex items-center font-bold hover:underline" style={{ color: primaryColor }}>
+                                            Read more
                                         </a>
                                     </div>
                                 </article>
                             ))}
                         </div>
                         {template?.id === 'okmentalhealth' && (
-                            <div className="mt-12 text-center">
+                            <div className="mt-12">
                                 <button
                                     type="button"
                                     onClick={() => setActiveSection('grants-search')}
-                                    className="inline-flex items-center gap-2 px-8 py-3 rounded-full text-sm font-bold text-white hover:opacity-90 transition-opacity"
+                                    className="inline-flex items-center gap-2 rounded px-6 py-3 text-sm font-bold text-white hover:brightness-110"
                                     style={{ backgroundColor: primaryColor }}
                                 >
                                     Search behavioral health grants
@@ -751,43 +681,7 @@ function App() {
                     </div>
                 </main>
 
-                {/* Footer */}
-                <footer className="text-white" style={{ backgroundColor: primaryColor }}>
-                    <div className="max-w-7xl mx-auto px-4 py-12">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-                            <div>
-                                <h3 className="font-bold text-lg mb-4">{template.branding?.institutionName ?? 'State Agency'}</h3>
-                                <p className="text-white/80 text-sm mb-2">{template.footer?.address ?? ''}</p>
-                                <p className="text-white/80 text-sm">{template.footer?.phone ?? ''}</p>
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-lg mb-4">Quick Links</h3>
-                                <ul className="space-y-2">
-                                    {template.footer?.quickLinks?.map((link, i) => (
-                                        <li key={i}>
-                                            <a href={link.href} className="text-white/80 text-sm hover:text-white transition-colors">{link.label}</a>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-lg mb-4">Connect</h3>
-                                <div className="flex gap-4">
-                                    {template.footer?.socialMedia?.map((s, i) => (
-                                        <a key={i} href={s.href} className="text-white/80 hover:text-white font-semibold" aria-label={s.label}>{s.platform}</a>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="border-t border-white/20">
-                        <div className="max-w-7xl mx-auto px-4 py-6">
-                            <p className="text-center text-white/70 text-sm">
-                                © 2026 {template.branding?.institutionName ?? 'State Agency'}. All Rights Reserved.
-                            </p>
-                        </div>
-                    </div>
-                </footer>
+                <CivicPublicFooter />
 
                 {template?.chatEnabled !== false && <ChatWidget floating={true} />}
                 <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} onLogin={handleLogin} />

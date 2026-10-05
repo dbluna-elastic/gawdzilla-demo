@@ -126,6 +126,9 @@ function applyTemplateStyles(template) {
         if (template.typography.fontFamily) {
             root.style.setProperty('--font-family', template.typography.fontFamily);
         }
+        if (template.typography.headingFontFamily) {
+            root.style.setProperty('--heading-font-family', template.typography.headingFontFamily);
+        }
     }
 }
 

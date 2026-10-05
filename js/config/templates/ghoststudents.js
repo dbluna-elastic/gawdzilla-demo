@@ -155,9 +155,10 @@ export const ghoststudentsTemplate = {
     },
 
     typography: {
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
-        headingWeight: '900',
-        headingTracking: '-0.05em',
+        fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+        headingFontFamily: "'Merriweather', Georgia, serif",
+        headingWeight: '700',
+        headingTracking: '0',
     },
 
     schema: 'agency',

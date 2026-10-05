@@ -230,13 +230,10 @@ body {
     background-color: var(--gov-bg-subtle);
 }
 
-/* Ghost students template — blue & gold with cartoon ghost wallpaper */
+/* Ghost students staff portal — blue & gold with cartoon ghost wallpaper */
 [data-template-id="ghoststudents"] {
     --ghost-bg: #E8F1FB;
     --ghost-bg-deep: #D6E6F7;
-}
-[data-template-id="ghoststudents"] body {
-    background-color: var(--ghost-bg);
 }
 .ghoststudents-shell {
     background-color: #E8F1FB;
@@ -257,4 +254,109 @@ body {
 .ghoststudents-shell .ghoststudents-header,
 .ghoststudents-shell .ghoststudents-footer {
     background: linear-gradient(90deg, #0B3D91, #1A56B0, #D4A017);
+}
+
+/* Civic public shell — USWDS / NIH Library patterns; brand colors stay on the template */
+html:is(
+    [data-template-id="ghoststudents"],
+    [data-template-id="okmentalhealth"],
+    [data-template-id="dot"],
+    [data-template-id="okoja"],
+    [data-template-id="snapfraud"],
+    [data-template-id="wyoming"]
+) {
+    --civic-radius: 0.25rem;
+    --civic-btn-radius: 0.25rem;
+    --civic-max-width: 64rem;
+    --civic-ink: #1b1b1b;
+    --civic-base-light: #f0f0f0;
+    --civic-base-lighter: #dfe1e2;
+    --civic-base-dark: #565c65;
+    --civic-focus: #face00;
+    --heading-font-family: 'Merriweather', Georgia, serif;
+    --font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html:is(
+    [data-template-id="ghoststudents"],
+    [data-template-id="okmentalhealth"],
+    [data-template-id="dot"],
+    [data-template-id="okoja"],
+    [data-template-id="snapfraud"],
+    [data-template-id="wyoming"]
+) body {
+    color: var(--civic-ink);
+    background-color: #ffffff;
+}
+
+html:is(
+    [data-template-id="ghoststudents"],
+    [data-template-id="okmentalhealth"],
+    [data-template-id="dot"],
+    [data-template-id="okoja"],
+    [data-template-id="snapfraud"],
+    [data-template-id="wyoming"]
+) h1,
+html:is(
+    [data-template-id="ghoststudents"],
+    [data-template-id="okmentalhealth"],
+    [data-template-id="dot"],
+    [data-template-id="okoja"],
+    [data-template-id="snapfraud"],
+    [data-template-id="wyoming"]
+) h2,
+html:is(
+    [data-template-id="ghoststudents"],
+    [data-template-id="okmentalhealth"],
+    [data-template-id="dot"],
+    [data-template-id="okoja"],
+    [data-template-id="snapfraud"],
+    [data-template-id="wyoming"]
+) h3 {
+    font-family: var(--heading-font-family, 'Merriweather', Georgia, serif);
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+}
+
+html:is(
+    [data-template-id="ghoststudents"],
+    [data-template-id="okmentalhealth"],
+    [data-template-id="dot"],
+    [data-template-id="okoja"],
+    [data-template-id="snapfraud"],
+    [data-template-id="wyoming"]
+) a.rounded-full,
+html:is(
+    [data-template-id="ghoststudents"],
+    [data-template-id="okmentalhealth"],
+    [data-template-id="dot"],
+    [data-template-id="okoja"],
+    [data-template-id="snapfraud"],
+    [data-template-id="wyoming"]
+) button.rounded-full {
+    border-radius: var(--civic-btn-radius, 0.25rem);
+}
+
+html:is(
+    [data-template-id="ghoststudents"],
+    [data-template-id="okmentalhealth"],
+    [data-template-id="dot"],
+    [data-template-id="okoja"],
+    [data-template-id="snapfraud"],
+    [data-template-id="wyoming"]
+) :focus-visible {
+    outline: 0.25rem solid var(--civic-focus);
+    outline-offset: 0.25rem;
+}
+
+html:is(
+    [data-template-id="ghoststudents"],
+    [data-template-id="okmentalhealth"],
+    [data-template-id="dot"],
+    [data-template-id="okoja"],
+    [data-template-id="snapfraud"],
+    [data-template-id="wyoming"]
+) .civic-nav-link:hover {
+    color: #ffffff;
 }

@@ -70,7 +70,7 @@ export default function MentalHealthStaffChrome({ onLogout, children, tabs, acti
                                     key={tab.id}
                                     type="button"
                                     onClick={() => onTabChange?.(tab.id)}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-full ${
+                                    className={`rounded-[2px] px-3 py-1.5 text-xs font-semibold ${
                                         activeTab === tab.id ? 'text-white' : 'text-gray-700 border border-gray-300'
                                     }`}
                                     style={activeTab === tab.id ? { backgroundColor: primaryColor } : undefined}
@@ -87,7 +87,7 @@ export default function MentalHealthStaffChrome({ onLogout, children, tabs, acti
                 <div className="max-w-7xl mx-auto px-4">
                     <h2
                         className="text-3xl md:text-4xl font-bold mb-2 tracking-tighter"
-                        style={{ fontFamily: 'var(--font-family)', color: primaryColor }}
+                        style={{ fontFamily: template?.typography?.headingFontFamily || 'var(--heading-font-family, var(--font-family))', color: primaryColor }}
                     >
                         {staff.pageTitle || schemaLabels.dashboardStaff}
                     </h2>

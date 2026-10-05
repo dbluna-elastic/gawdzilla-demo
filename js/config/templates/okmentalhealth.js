@@ -206,9 +206,10 @@ export const okmentalhealthTemplate = {
     },
 
     typography: {
-        fontFamily: '"Open Sans", "Montserrat", Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+        fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+        headingFontFamily: "'Merriweather', Georgia, serif",
         headingWeight: '700',
-        headingTracking: '-0.02em',
+        headingTracking: '0',
     },
 
     navigation: {
