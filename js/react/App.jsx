@@ -29,6 +29,7 @@ import OjaStaffPortal from './components/OjaStaffPortal.jsx';
 import SnapFraudStaffPortal from './components/SnapFraudStaffPortal.jsx';
 import WyomingStaffPortal from './components/WyomingStaffPortal.jsx';
 import GhostStudentsStaffPortal from './components/GhostStudentsStaffPortal.jsx';
+import FwScadaExecutiveDashboard from './components/fwscada/FwScadaExecutiveDashboard.jsx';
 import OjaYouthScorecard from './components/OjaYouthScorecard.jsx';
 import OkCommerceCompanyDashboard from './components/OkCommerceCompanyDashboard.jsx';
 import OkAgencyStaffDashboard from './components/OkAgencyStaffDashboard.jsx';
@@ -200,6 +201,11 @@ function App() {
 
     if (activeSection === 'oumet-researcher-dashboard') {
         return <OuMetResearcherPortal onLogout={handleLogout} />;
+    }
+
+    // FW SCADA: dashboard-first — no citizen landing or staff login wall
+    if (template?.id === 'fwscada') {
+        return <FwScadaExecutiveDashboard />;
     }
 
     if (activeSection === 'student-dashboard') {
