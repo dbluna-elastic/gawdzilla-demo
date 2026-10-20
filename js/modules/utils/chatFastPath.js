@@ -20,6 +20,7 @@ import { tryOkstateGamedayChatFastPath, OKSTATE_GAMEDAY_AGENT } from './okstateG
 import { tryWeatherChatFastPath, CATALOG_AGENT, PROVISIONING_AGENT } from './weatherChatFastPath.js';
 import { trySnapFraudChatFastPath, SNAP_FRAUD_AGENT } from './snapFraudChatFastPath.js';
 import { tryWyoClassifyChatFastPath, WYO_CLASSIFY_AGENT } from './wyoClassifyChatFastPath.js';
+import { tryTsuLibraryChatFastPath, TSU_LIBRARY_AGENT } from './tsuLibraryChatFastPath.js';
 import { getEnvVar } from './getEnvVar.js';
 
 const BOOSTER_AGENT = 'booster-donor-data';
@@ -65,7 +66,8 @@ export function canUseChatFastPath(agentId) {
         || agentId === CATALOG_AGENT
         || agentId === PROVISIONING_AGENT
         || agentId === SNAP_FRAUD_AGENT
-        || agentId === WYO_CLASSIFY_AGENT;
+        || agentId === WYO_CLASSIFY_AGENT
+        || agentId === TSU_LIBRARY_AGENT;
 }
 
 function formatCurrency(value) {
@@ -171,6 +173,10 @@ export async function tryChatFastPath(agentId, message) {
 
     if (agentId === WYO_CLASSIFY_AGENT) {
         return tryWyoClassifyChatFastPath(agentId, message);
+    }
+
+    if (agentId === TSU_LIBRARY_AGENT) {
+        return tryTsuLibraryChatFastPath(agentId, message);
     }
 
     if (agentId !== BOOSTER_AGENT && agentId !== OKSTATE_DONOR_AGENT) return null;

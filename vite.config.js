@@ -27,6 +27,17 @@ export default defineConfig({
                     });
                 }
             },
+            // Texas State Libraries receipt upload/OCR (Texasstate-library FastAPI)
+            '/api/tsu-library': {
+                target: process.env.TSU_LIBRARY_API_URL || 'http://127.0.0.1:8080',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api\/tsu-library/, ''),
+                configure: (proxy) => {
+                    proxy.on('error', (err) => {
+                        console.error('TSU library FastAPI proxy error:', err);
+                    });
+                },
+            },
             // Proxy for Elasticsearch direct searches (ES endpoint) — Gawdzilla (single-cluster default)
             '/api/elastic/es': {
                 target: 'https://gawdzilla-0d3e9e.es.us-east-2.aws.elastic-cloud.com:443',
@@ -212,6 +223,20 @@ export default defineConfig({
                     });
                 },
             },
+            '/api/elastic/agent/library-receipts-assistant/chat/stream': {
+                target: 'https://gawdzilla-0d3e9e.kb.us-east-2.aws.elastic-cloud.com',
+                changeOrigin: true,
+                // Agent is scoped to Kibana space tsu-library-receipts
+                rewrite: () => '/s/tsu-library-receipts/api/agent_builder/converse/async',
+                configure: (proxy) => {
+                    proxy.on('proxyRes', (proxyRes) => {
+                        proxyRes.headers['cache-control'] = 'no-cache';
+                    });
+                    proxy.on('error', (err) => {
+                        console.error('Agent Builder stream (library-receipts-assistant) proxy error:', err);
+                    });
+                },
+            },
             '/api/elastic/agent/elastic-ai-agent/chat/stream': {
                 target: 'https://gawdzilla-0d3e9e.kb.us-east-2.aws.elastic-cloud.com',
                 changeOrigin: true,
@@ -335,6 +360,17 @@ export default defineConfig({
                     });
                 }
             },
+            '/api/elastic/agent/library-receipts-assistant/chat': {
+                target: 'https://gawdzilla-0d3e9e.kb.us-east-2.aws.elastic-cloud.com',
+                changeOrigin: true,
+                // Agent is scoped to Kibana space tsu-library-receipts
+                rewrite: () => '/s/tsu-library-receipts/api/agent_builder/converse',
+                configure: (proxy) => {
+                    proxy.on('error', (err, req, res) => {
+                        console.error('Agent Builder (library-receipts-assistant) proxy error:', err);
+                    });
+                }
+            },
             '/api/elastic/agent/elastic-ai-agent/chat': {
                 target: 'https://gawdzilla-0d3e9e.kb.us-east-2.aws.elastic-cloud.com',
                 changeOrigin: true,
@@ -352,10 +388,18 @@ export default defineConfig({
                 rewrite: (path) => {
                     const streamMatch = path.match(/^\/api\/elastic\/agent\/([^\/]+)\/chat\/stream$/);
                     if (streamMatch) {
+                        const agentId = streamMatch[1];
+                        if (agentId === 'library-receipts-assistant') {
+                            return '/s/tsu-library-receipts/api/agent_builder/converse/async';
+                        }
                         return '/api/agent_builder/converse/async';
                     }
                     const agentMatch = path.match(/^\/api\/elastic\/agent\/([^\/]+)\/chat$/);
                     if (agentMatch) {
+                        const agentId = agentMatch[1];
+                        if (agentId === 'library-receipts-assistant') {
+                            return '/s/tsu-library-receipts/api/agent_builder/converse';
+                        }
                         return '/api/agent_builder/converse';
                     }
                     return path.replace(/^\/api\/elastic/, '');

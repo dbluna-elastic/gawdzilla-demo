@@ -12,10 +12,10 @@ import { maskValue } from './maskValue.js';
 import { tracedFetch } from './tracingHelpers.js';
 
 /** Agent Builder agents served from gawdzilla (OK_KIBANA_URL / OK_KIBANA_API_KEY), not ELASTIC_KB_URL. */
-const GAWDZILLA_AGENT_BUILDER_IDS = new Set(['ok-fraud', 'ok-grants-data', 'booster-donor-data', 'ok-oja-data', 'gameday-revenue-data', 'ou-met-catalog-agent', 'ou-met-provisioning-agent', 'snap-fraud-investigator', 'okstate-donor-assistant', 'okstate-gameday-revenue-assistant', 'wyo-classify', 'rrp-aid-integrity', 'elastic-ai-agent']);
+const GAWDZILLA_AGENT_BUILDER_IDS = new Set(['ok-fraud', 'ok-grants-data', 'booster-donor-data', 'ok-oja-data', 'gameday-revenue-data', 'ou-met-catalog-agent', 'ou-met-provisioning-agent', 'snap-fraud-investigator', 'okstate-donor-assistant', 'okstate-gameday-revenue-assistant', 'wyo-classify', 'rrp-aid-integrity', 'elastic-ai-agent', 'library-receipts-assistant']);
 
 /** ESQL / _search on gawdzilla Elasticsearch (OK_ELASTIC_ES_URL proxy path). */
-const GAWDZILLA_ES_AGENT_IDS = new Set(['ok-fraud', 'booster-donor-data', 'ok-oja-data', 'gameday-revenue-data', 'snap-fraud-investigator', 'okstate-donor-assistant', 'okstate-gameday-revenue-assistant', 'wyo-classify', 'rrp-aid-integrity', 'elastic-ai-agent']);
+const GAWDZILLA_ES_AGENT_IDS = new Set(['ok-fraud', 'booster-donor-data', 'ok-oja-data', 'gameday-revenue-data', 'snap-fraud-investigator', 'okstate-donor-assistant', 'okstate-gameday-revenue-assistant', 'wyo-classify', 'rrp-aid-integrity', 'elastic-ai-agent', 'library-receipts-assistant']);
 
 function usesGawdzillaAgentBuilder(agentId) {
     return Boolean(agentId && GAWDZILLA_AGENT_BUILDER_IDS.has(String(agentId)));
@@ -457,6 +457,60 @@ export async function fetchElasticsearchUpdate(index, documentId, updateData) {
         console.error('Elasticsearch update error:', error.message);
         throw error;
     }
+}
+
+/**
+ * Partial document update on gawdzilla Elasticsearch (ok-fraud ES proxy).
+ *
+ * @param {string} index - Index or alias name
+ * @param {string} documentId - Document ID
+ * @param {Object} updateData - Fields wrapped in `doc` for partial update
+ * @param {string} [agentId='library-receipts-assistant'] - Must be in GAWDZILLA_ES_AGENT_IDS
+ * @param {Object} [options]
+ * @param {boolean} [options.refresh=true] - Refresh the shard after update
+ * @returns {Promise<Object>}
+ */
+export async function fetchElasticsearchUpdateWithAgent(
+    index,
+    documentId,
+    updateData,
+    agentId = 'library-receipts-assistant',
+    options = {},
+) {
+    if (!usesGawdzillaEs(agentId)) {
+        throw new Error('fetchElasticsearchUpdateWithAgent supports gawdzilla agent IDs only');
+    }
+    const apiKey = getApiKeyForAgent(agentId);
+    const maskedKey = apiKey ? maskValue(apiKey) : '(proxy)';
+    const refresh = options.refresh !== false;
+    console.log('Elasticsearch update (ok cluster):', {
+        index,
+        documentId: maskValue(documentId, 8),
+        fieldsCount: Object.keys(updateData || {}).length,
+        apiKey: maskedKey,
+    });
+
+    const qs = refresh ? '?refresh=true' : '';
+    const response = await tracedFetch(
+        `/api/elastic/ok-fraud/es/${encodeURIComponent(index)}/_update/${encodeURIComponent(documentId)}${qs}`,
+        {
+            method: 'POST',
+            headers: createAuthHeaders(false, agentId),
+            body: JSON.stringify({ doc: updateData }),
+        },
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Elasticsearch update (ok cluster) failed:', {
+            status: response.status,
+            index,
+            error: errorText.substring(0, 200),
+        });
+        throw new Error(`Elasticsearch update failed: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
 }
 
 /**

@@ -25,10 +25,12 @@ import OkOjaPublicSections from './components/OkOjaPublicSections.jsx';
 import SnapFraudPublicSections from './components/SnapFraudPublicSections.jsx';
 import WyomingPublicSections from './components/WyomingPublicSections.jsx';
 import GhostStudentsPublicSections from './components/GhostStudentsPublicSections.jsx';
+import TsuLibraryPublicSections from './components/TsuLibraryPublicSections.jsx';
 import OjaStaffPortal from './components/OjaStaffPortal.jsx';
 import SnapFraudStaffPortal from './components/SnapFraudStaffPortal.jsx';
 import WyomingStaffPortal from './components/WyomingStaffPortal.jsx';
 import GhostStudentsStaffPortal from './components/GhostStudentsStaffPortal.jsx';
+import TsuLibraryStaffPortal from './components/TsuLibraryStaffPortal.jsx';
 import FwScadaExecutiveDashboard from './components/fwscada/FwScadaExecutiveDashboard.jsx';
 import OjaYouthScorecard from './components/OjaYouthScorecard.jsx';
 import OkCommerceCompanyDashboard from './components/OkCommerceCompanyDashboard.jsx';
@@ -311,6 +313,9 @@ function App() {
         if (template?.id === 'wyoming') {
             return <WyomingStaffPortal onLogout={handleLogout} />;
         }
+        if (template?.id === 'tsulibrary') {
+            return <TsuLibraryStaffPortal onLogout={handleLogout} />;
+        }
         if (template?.id === 'okmentalhealth') {
             return (
                 <MentalHealthStaffPortal
@@ -415,7 +420,7 @@ function App() {
     }
 
     // Oklahoma agency–style layout (okagency, okmentalhealth): overlay header, hero, blue bar, promo bar, white main
-    const isAgencyOverlayLayout = ['okagency', 'okmentalhealth', 'dot', 'okoja', 'snapfraud', 'wyoming', 'ghoststudents'].includes(template?.id);
+    const isAgencyOverlayLayout = ['okagency', 'okmentalhealth', 'dot', 'okoja', 'snapfraud', 'wyoming', 'ghoststudents', 'tsulibrary'].includes(template?.id);
     const primaryColor = template?.colors?.primary || '#5D5FEF';
     const secondaryColor = template?.colors?.secondary || '#2E7D32';
     const charcoalColor = template?.colors?.charcoal || '#1e293b';
@@ -606,6 +611,10 @@ function App() {
 
                 {template?.id === 'wyoming' && (
                     <WyomingPublicSections onStaffLoginClick={() => setShowLoginModal(true)} />
+                )}
+
+                {template?.id === 'tsulibrary' && (
+                    <TsuLibraryPublicSections onStaffLoginClick={() => setShowLoginModal(true)} />
                 )}
 
                 {template?.id === 'okmentalhealth' && (

@@ -74,6 +74,9 @@ export OK_KIBANA_URL=${OK_KIBANA_URL:-https://gawdzilla-0d3e9e.kb.us-east-2.aws.
 # Gawdzilla Elasticsearch URL for ok-fraud ESQL (default: same deployment as OK_KIBANA_URL, ES endpoint)
 export OK_ELASTIC_ES_URL=${OK_ELASTIC_ES_URL:-https://gawdzilla-0d3e9e.es.us-east-2.aws.elastic-cloud.com:443}
 
+# Texas State Libraries FastAPI (upload/OCR) — host machine from Docker Desktop
+export TSU_LIBRARY_API_URL=${TSU_LIBRARY_API_URL:-http://host.docker.internal:8080}
+
 # Extract hostnames from URLs for Host header (remove https:// prefix)
 export ELASTIC_ES_HOST=${ELASTIC_ES_URL#https://}
 export ELASTIC_KB_HOST=${ELASTIC_KB_URL#https://}
@@ -81,7 +84,7 @@ export OK_KIBANA_HOST=${OK_KIBANA_URL#https://}
 export OK_ELASTIC_ES_HOST=${OK_ELASTIC_ES_URL#https://}
 
 # Use envsubst to replace variables in nginx.conf
-envsubst '${ELASTIC_ES_URL} ${ELASTIC_KB_URL} ${OK_KIBANA_URL} ${OK_ELASTIC_ES_URL} ${ELASTIC_ES_HOST} ${ELASTIC_KB_HOST} ${OK_KIBANA_HOST} ${OK_ELASTIC_ES_HOST}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
+envsubst '${ELASTIC_ES_URL} ${ELASTIC_KB_URL} ${OK_KIBANA_URL} ${OK_ELASTIC_ES_URL} ${ELASTIC_ES_HOST} ${ELASTIC_KB_HOST} ${OK_KIBANA_HOST} ${OK_ELASTIC_ES_HOST} ${TSU_LIBRARY_API_URL}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
 
 # Configure and start Elastic Agent if API key is provided
 if [ -n "$ELASTIC_AGENT_API_KEY" ] && [ -f "/opt/elastic-agent/elastic-agent" ]; then

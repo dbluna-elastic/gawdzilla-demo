@@ -25,6 +25,7 @@ import { snapfraudTemplate } from './templates/snapfraud.js';
 import { wyomingTemplate } from './templates/wyoming.js';
 import { ghoststudentsTemplate } from './templates/ghoststudents.js';
 import { fwscadaTemplate } from './templates/fwscada.js';
+import { tsulibraryTemplate } from './templates/tsulibrary.js';
 import { getEnvVar } from '../modules/utils/getEnvVar.js';
 
 // Template registry
@@ -44,6 +45,7 @@ const templates = {
     wyoming: wyomingTemplate,
     ghoststudents: ghoststudentsTemplate,
     fwscada: fwscadaTemplate,
+    tsulibrary: tsulibraryTemplate,
 };
 
 /**
