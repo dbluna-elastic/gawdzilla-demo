@@ -57,6 +57,11 @@ if [ -f /usr/share/nginx/html/index.html ]; then
     if [ -n "$AGENT_FAST_PATH_SKIP" ]; then
         ENV_SCRIPT="${ENV_SCRIPT}AGENT_FAST_PATH_SKIP:'$AGENT_FAST_PATH_SKIP',"
     fi
+
+    # CARTO basemap API key (OK 3D / FW SCADA Leaflet tiles)
+    if [ -n "$CARTO_API_KEY" ]; then
+        ENV_SCRIPT="${ENV_SCRIPT}CARTO_API_KEY:'$CARTO_API_KEY',"
+    fi
     
     # Close the object
     ENV_SCRIPT="${ENV_SCRIPT}};</script>"

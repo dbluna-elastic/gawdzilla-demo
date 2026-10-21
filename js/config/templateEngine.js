@@ -26,6 +26,7 @@ import { wyomingTemplate } from './templates/wyoming.js';
 import { ghoststudentsTemplate } from './templates/ghoststudents.js';
 import { fwscadaTemplate } from './templates/fwscada.js';
 import { tsulibraryTemplate } from './templates/tsulibrary.js';
+import { ok3dTemplate } from './templates/ok3d.js';
 import { getEnvVar } from '../modules/utils/getEnvVar.js';
 
 // Template registry
@@ -46,6 +47,7 @@ const templates = {
     ghoststudents: ghoststudentsTemplate,
     fwscada: fwscadaTemplate,
     tsulibrary: tsulibraryTemplate,
+    ok3d: ok3dTemplate,
 };
 
 /**

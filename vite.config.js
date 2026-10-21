@@ -237,6 +237,20 @@ export default defineConfig({
                     });
                 },
             },
+            '/api/elastic/agent/mesonet-flight-analyst/chat/stream': {
+                target: 'https://gawdzilla-0d3e9e.kb.us-east-2.aws.elastic-cloud.com',
+                changeOrigin: true,
+                // Agent is scoped to Kibana space ok3d-uas
+                rewrite: () => '/s/ok3d-uas/api/agent_builder/converse/async',
+                configure: (proxy) => {
+                    proxy.on('proxyRes', (proxyRes) => {
+                        proxyRes.headers['cache-control'] = 'no-cache';
+                    });
+                    proxy.on('error', (err) => {
+                        console.error('Agent Builder stream (mesonet-flight-analyst) proxy error:', err);
+                    });
+                },
+            },
             '/api/elastic/agent/elastic-ai-agent/chat/stream': {
                 target: 'https://gawdzilla-0d3e9e.kb.us-east-2.aws.elastic-cloud.com',
                 changeOrigin: true,
@@ -371,6 +385,17 @@ export default defineConfig({
                     });
                 }
             },
+            '/api/elastic/agent/mesonet-flight-analyst/chat': {
+                target: 'https://gawdzilla-0d3e9e.kb.us-east-2.aws.elastic-cloud.com',
+                changeOrigin: true,
+                // Agent is scoped to Kibana space ok3d-uas
+                rewrite: () => '/s/ok3d-uas/api/agent_builder/converse',
+                configure: (proxy) => {
+                    proxy.on('error', (err, req, res) => {
+                        console.error('Agent Builder (mesonet-flight-analyst) proxy error:', err);
+                    });
+                }
+            },
             '/api/elastic/agent/elastic-ai-agent/chat': {
                 target: 'https://gawdzilla-0d3e9e.kb.us-east-2.aws.elastic-cloud.com',
                 changeOrigin: true,
@@ -392,6 +417,9 @@ export default defineConfig({
                         if (agentId === 'library-receipts-assistant') {
                             return '/s/tsu-library-receipts/api/agent_builder/converse/async';
                         }
+                        if (agentId === 'mesonet-flight-analyst') {
+                            return '/s/ok3d-uas/api/agent_builder/converse/async';
+                        }
                         return '/api/agent_builder/converse/async';
                     }
                     const agentMatch = path.match(/^\/api\/elastic\/agent\/([^\/]+)\/chat$/);
@@ -399,6 +427,9 @@ export default defineConfig({
                         const agentId = agentMatch[1];
                         if (agentId === 'library-receipts-assistant') {
                             return '/s/tsu-library-receipts/api/agent_builder/converse';
+                        }
+                        if (agentId === 'mesonet-flight-analyst') {
+                            return '/s/ok3d-uas/api/agent_builder/converse';
                         }
                         return '/api/agent_builder/converse';
                     }

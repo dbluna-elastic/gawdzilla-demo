@@ -41,6 +41,7 @@ import TexasCollegeStaffPortal from './components/TexasCollegeStaffPortal.jsx';
 import OuMetStaffPortal from './components/oumet/OuMetStaffPortal.jsx';
 import OuMetResearcherPortal from './components/oumet/OuMetResearcherPortal.jsx';
 import OuMetCatalogPanel from './components/oumet/OuMetCatalogPanel.jsx';
+import Ok3dStaffPortal from './components/ok3d/Ok3dStaffPortal.jsx';
 import BoosterDonorScorecard from './components/BoosterDonorScorecard.jsx';
 import OkAgencyPortalHeader from './components/okagency/OkAgencyPortalHeader.jsx';
 import OkAgencyFooter from './components/okagency/OkAgencyFooter.jsx';
@@ -94,6 +95,8 @@ function App() {
                     ? 'commerce-dashboard'
                     : template?.id === 'oumet'
                     ? 'oumet-researcher-dashboard'
+                    : template?.id === 'ok3d'
+                    ? 'counselor-dashboard'
                     : 'student-dashboard',
             );
             setShowLoginModal(false);
@@ -292,6 +295,9 @@ function App() {
         }
         if (template?.id === 'oumet') {
             return <OuMetStaffPortal onLogout={handleLogout} />;
+        }
+        if (template?.id === 'ok3d') {
+            return <Ok3dStaffPortal onLogout={handleLogout} />;
         }
         if (template?.id === 'okoja') {
             return (
@@ -800,6 +806,12 @@ function App() {
                                     href={link.href}
                                     className="text-gray-900 font-medium hover:text-[var(--primary-color)] transition-colors"
                                     style={{ color: '#1a2332' }}
+                                    onClick={(e) => {
+                                        if (link.href === '#staff-login') {
+                                            e.preventDefault();
+                                            setShowLoginModal(true);
+                                        }
+                                    }}
                                 >
                                     {link.label}
                                 </a>

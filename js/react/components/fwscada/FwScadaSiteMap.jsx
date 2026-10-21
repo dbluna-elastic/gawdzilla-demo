@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getCartoDarkRasterLayer } from '../../../modules/utils/cartoBasemap.js';
 import { formatSiteType, statusColor } from './fwScadaUi.js';
 
 /**
@@ -33,11 +34,10 @@ export default function FwScadaSiteMap({ sites }) {
                 scrollWheelZoom: false,
             }).setView([41.0793, -85.1394], 11);
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-                subdomains: 'abcd',
-                maxZoom: 19,
-            }).addTo(map);
+            const basemap = getCartoDarkRasterLayer();
+            if (basemap) {
+                L.tileLayer(basemap.url, basemap.options).addTo(map);
+            }
 
             layerRef.current = L.layerGroup().addTo(map);
             mapRef.current = map;
