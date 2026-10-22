@@ -1,7 +1,9 @@
 /**
  * Vercel BFF: mirrors Docker nginx /api/elastic/* proxies.
  * Secrets stay server-side (ELASTIC_API_KEY / OK_KIBANA_API_KEY).
- * Client may still send Authorization; if absent, we attach a server key.
+ *
+ * Non-Next Vite apps cannot use api/[...path] catch-alls for nested URLs.
+ * vercel.json rewrites /api/elastic/* → this file; original req.url is preserved.
  */
 
 export const config = {
@@ -68,19 +70,16 @@ function okKbUrl() {
 function resolveUpstream(subPath) {
   const path = subPath.replace(/^\/+/, '');
 
-  // /api/elastic/ok-fraud/es... → OK ES
   if (path === 'ok-fraud/es' || path.startsWith('ok-fraud/es/')) {
     const rest = path.slice('ok-fraud/es'.length) || '/';
     return { base: okEsUrl(), upstreamPath: rest.startsWith('/') ? rest : `/${rest}`, useOkKey: true };
   }
 
-  // /api/elastic/es... → ES
   if (path === 'es' || path.startsWith('es/')) {
     const rest = path.slice('es'.length) || '/';
     return { base: esUrl(), upstreamPath: rest.startsWith('/') ? rest : `/${rest}`, useOkKey: true };
   }
 
-  // /api/elastic/workflows/... → /api/workflows/...
   if (path === 'workflows' || path.startsWith('workflows/')) {
     const rest = path.slice('workflows'.length).replace(/^\//, '');
     return {
@@ -90,7 +89,6 @@ function resolveUpstream(subPath) {
     };
   }
 
-  // tool execute shortcuts
   for (const prefix of TOOL_EXECUTE_PREFIXES) {
     if (path === `${prefix}/tools/_execute`) {
       return {
@@ -108,7 +106,6 @@ function resolveUpstream(subPath) {
     };
   }
 
-  // Agent chat / stream
   const agentMatch = path.match(/^agent\/([^/]+)\/chat(\/stream)?$/);
   if (agentMatch) {
     const agentId = agentMatch[1];
@@ -150,7 +147,6 @@ function resolveUpstream(subPath) {
     };
   }
 
-  // Catch-all: strip /api/elastic prefix → Kibana
   return {
     base: kbUrl(),
     upstreamPath: path ? `/${path}` : '/',
@@ -175,11 +171,8 @@ async function readRawBody(req) {
   return Buffer.concat(chunks);
 }
 
+/** Path after /api/elastic from the original request URL (preserved by rewrite). */
 function buildSubPath(req) {
-  const q = req.query?.path;
-  if (Array.isArray(q)) return q.join('/');
-  if (typeof q === 'string' && q.length) return q;
-  // Fallback: parse from URL
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   return url.pathname.replace(/^\/api\/elastic\/?/, '');
 }
@@ -204,7 +197,6 @@ export default async function handler(req, res) {
     const { base, upstreamPath, useOkKey } = resolveUpstream(subPath);
     const targetUrl = new URL(upstreamPath, `${base}/`);
 
-    // Preserve query string from the incoming request
     const incoming = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     incoming.searchParams.forEach((value, key) => {
       targetUrl.searchParams.append(key, value);
@@ -234,11 +226,9 @@ export default async function handler(req, res) {
     res.statusCode = upstream.status;
     upstream.headers.forEach((value, key) => {
       if (HOP_BY_HOP.has(key.toLowerCase())) return;
-      // Avoid compressing/chunking mismatches when we stream ourselves
       if (key.toLowerCase() === 'content-encoding') return;
       res.setHeader(key, value);
     });
-    // Agent Builder SSE
     if (String(upstream.headers.get('content-type') || '').includes('text/event-stream')) {
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('X-Accel-Buffering', 'no');

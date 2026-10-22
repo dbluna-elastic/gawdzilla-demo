@@ -4,12 +4,16 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/elastic/(.*)",
+      "destination": "/api/elastic"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ],
   "functions": {
-    "api/elastic/[...path].js": {
+    "api/elastic.js": {
       "maxDuration": 300
     }
   }
