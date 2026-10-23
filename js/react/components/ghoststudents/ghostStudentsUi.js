@@ -47,7 +47,9 @@ export function kibanaCasesHref(template) {
  */
 export function kibanaAgentHref(template) {
     const agentId = template?.elastic?.agentId || 'rrp-aid-integrity';
-    return `${kibanaSpaceBase(template)}/app/agent_builder/chat/${agentId}`;
+    // Agent Builder agent lives in the default space; dashboards use kibanaSpace.
+    const base = (template?.elastic?.kibanaUrl || '').replace(/\/$/, '');
+    return `${base}/app/agent_builder/chat/${agentId}`;
 }
 
 export const GHOST_CARD_CLASS = 'bg-white/90 backdrop-blur-md border border-blue-200/70 rounded-2xl shadow-[0_8px_24px_rgba(11,61,145,0.12)]';

@@ -157,7 +157,7 @@ export const texascollegeTemplate = {
         dashboards: [
             {
                 title: 'Engagement Drop Timeline',
-                id: 'engagement-drop-timeline',
+                id: 'at-risk-engagement-drop-timeline',
                 section: 'donors',
             },
             {
@@ -199,7 +199,7 @@ export const texascollegeTemplate = {
             demoDonorName: 'James Chen',
             inflectionDate: '2025-09-01',
             startDate: '2024-03-01',
-            dashboardId: 'engagement-drop-timeline',
+            dashboardId: 'at-risk-engagement-drop-timeline',
         },
         workflows: {
             alumniEmail: {
